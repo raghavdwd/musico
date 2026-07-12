@@ -5,12 +5,20 @@ import { TailspinLoader, CenteredLoader } from "../components/ui/Loaders";
 
 export default function Playlist() {
   const { id } = useParams();
-  const { data, isLoading } = usePlaylist(id);
+  const { data, isLoading, isError } = usePlaylist(id);
 
-  if (isLoading || !data) {
+  if (isLoading) {
     return (
       <CenteredLoader>
         <TailspinLoader size={56} />
+      </CenteredLoader>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <CenteredLoader>
+        <p className="text-mist">Playlist not found.</p>
       </CenteredLoader>
     );
   }

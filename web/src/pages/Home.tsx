@@ -27,7 +27,10 @@ export default function Home() {
     );
   }
 
-  const sections = data || [];
+  const sections = (data || []).map((s) => ({
+    ...s,
+    contents: s.contents.filter((c) => c.type !== "PLAYLIST"),
+  }));
   const allSongs: SongDetailed[] = sections.flatMap((s) => s.contents.filter((c): c is SongDetailed => c.type === "SONG"));
   const heroSong = allSongs[0];
   const heroThumb = bestThumb(heroSong?.thumbnails, 600);

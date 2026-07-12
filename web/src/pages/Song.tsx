@@ -1,19 +1,24 @@
 import { useParams } from "react-router-dom";
 import { motion } from "motion/react";
-import { RiPlayFill } from "react-icons/ri";
-import { useSong, useLyrics } from "../hooks/useApi";
+import { RiPlayFill, RiShareLine, RiPlayListAddLine } from "react-icons/ri";
+import { useSong, useLyrics, useArtist, useHome } from "../hooks/useApi";
 import { usePlayer } from "../lib/store";
 import { useLibrary } from "../lib/library";
 import { bestThumb, formatTime } from "../lib/format";
 import { SquareLoader, CenteredLoader } from "../components/ui/Loaders";
+import { toast } from "sonner";
+import SongRow from "../components/cards/SongRow";
 import type { SongDetailed } from "../types";
 
 export default function Song() {
   const { id } = useParams();
   const { data: song, isLoading } = useSong(id);
   const { data: lyrics, isLoading: lyricsLoading } = useLyrics(id);
-  const { load, current, isPlaying, toggle } = usePlayer();
+  const { load, addToQueue, current, isPlaying, toggle } = usePlayer();
   const { liked, toggleLike } = useLibrary();
+
+  const { data: artist } = useArtist(song?.artist?.artistId ?? undefined);
+  const { data: homeData } = useHome();
 
   if (isLoading || !song) {
     return (
@@ -26,16 +31,33 @@ export default function Song() {
   const isCurrent = current?.videoId === song.videoId;
   const isLiked = liked.some((s) => s.videoId === song.videoId);
 
+  const songDetailed: SongDetailed = {
+    ...song, type: "SONG", album: null, duration: song.duration,
+  } as SongDetailed;
+
   const play = () => {
     if (isCurrent) toggle();
-    else
-      load(
-        { ...song, type: "SONG", album: null, duration: song.duration, artist: song.artist },
-        [song as unknown as SongDetailed],
-      );
+    else load(songDetailed, [songDetailed]);
   };
 
   const hero = bestThumb(song.thumbnails, 600) || song.thumbnails?.[0];
+
+  const moreFromArtist = artist?.topSongs?.filter(
+    (s) => s.videoId !== song.videoId,
+  ) ?? [];
+
+  const recSongs: SongDetailed[] = (homeData ?? []).flatMap((s) =>
+    s.contents.filter((c): c is SongDetailed => c.type === "SONG"),
+  ).filter((s) => s.videoId !== song.videoId);
+
+  const shareSong = () => {
+    if (navigator.share) {
+      navigator.share({ title: song.name, url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied!");
+    }
+  };
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -60,7 +82,7 @@ export default function Song() {
           <div className="mt-1 text-sm text-mist">
             {song.artist.name} · {formatTime(song.duration)}
           </div>
-          <div className="mt-6 flex gap-2">
+          <div className="mt-6 flex flex-wrap gap-2">
             <button
               onClick={play}
               className="flex items-center gap-2 rounded-full bg-ember px-5 py-2 text-sm font-semibold text-void transition-transform hover:scale-105 active:scale-95"
@@ -69,14 +91,7 @@ export default function Song() {
               {isCurrent && isPlaying ? "Pause" : "Play"}
             </button>
             <button
-              onClick={() =>
-                toggleLike({
-                  ...song,
-                  type: "SONG",
-                  album: null,
-                  duration: song.duration,
-                } as SongDetailed)
-              }
+              onClick={() => toggleLike(songDetailed)}
               className={`rounded-full border px-5 py-2 text-sm transition-colors ${
                 isLiked
                   ? "border-ember bg-ember/20 text-ember"
@@ -84,6 +99,18 @@ export default function Song() {
               }`}
             >
               {isLiked ? "♥ Liked" : "♡ Like"}
+            </button>
+            <button
+              onClick={() => { addToQueue(songDetailed); toast.success("Added to queue"); }}
+              className="flex items-center gap-1.5 rounded-full border border-bark bg-ash/60 px-5 py-2 text-sm text-snow transition-colors hover:bg-bark/60"
+            >
+              <RiPlayListAddLine /> Queue
+            </button>
+            <button
+              onClick={shareSong}
+              className="flex items-center gap-1.5 rounded-full border border-bark bg-ash/60 px-5 py-2 text-sm text-snow transition-colors hover:bg-bark/60"
+            >
+              <RiShareLine /> Share
             </button>
           </div>
         </div>
@@ -107,6 +134,44 @@ export default function Song() {
           )}
         </div>
       </motion.div>
+
+      {moreFromArtist.length > 0 && (
+        <section className="mt-12 space-y-3">
+          <h2 className="font-display text-2xl font-medium tracking-tight text-snow">
+            More from {song.artist.name}
+          </h2>
+          <div className="space-y-0.5">
+            {moreFromArtist.slice(0, 10).map((s, i) => (
+              <SongRow
+                key={s.videoId}
+                song={s}
+                index={i}
+                queue={moreFromArtist}
+                onAddToQueue={(song) => { addToQueue(song); toast.success("Added to queue"); }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {recSongs.length > 0 && (
+        <section className="mt-10 space-y-3">
+          <h2 className="font-display text-2xl font-medium tracking-tight text-snow">
+            You might also like
+          </h2>
+          <div className="space-y-0.5">
+            {recSongs.slice(0, 10).map((s, i) => (
+              <SongRow
+                key={s.videoId}
+                song={s}
+                index={i}
+                queue={recSongs}
+                onAddToQueue={(song) => { addToQueue(song); toast.success("Added to queue"); }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

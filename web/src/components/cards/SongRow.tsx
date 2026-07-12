@@ -1,4 +1,4 @@
-import { RiHeartFill, RiHeartLine, RiPauseFill, RiPlayFill, RiAddLine } from "react-icons/ri";
+import { RiHeartFill, RiHeartLine, RiPauseFill, RiPlayFill, RiAddLine, RiPlayListAddLine } from "react-icons/ri";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import type { SongDetailed } from "../../types";
@@ -16,9 +16,10 @@ interface Props {
   queue?: SongDetailed[];
   showArt?: boolean;
   onClick?: () => void;
+  onAddToQueue?: (song: SongDetailed) => void;
 }
 
-export default function SongRow({ song, index, queue, showArt = true, onClick }: Props) {
+export default function SongRow({ song, index, queue, showArt = true, onClick, onAddToQueue }: Props) {
   const { load, current, isPlaying, isLoading, toggle } = usePlayer();
   const { isLiked, toggleLike } = useLibrary();
   const openAddToPlaylist = useUI((s) => s.openAddToPlaylist);
@@ -123,6 +124,19 @@ export default function SongRow({ song, index, queue, showArt = true, onClick }:
       >
         <RiAddLine />
       </button>
+
+      {onAddToQueue && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddToQueue(song);
+          }}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-mist opacity-0 transition-colors hover:text-snow group-hover:opacity-100"
+          aria-label="Add to queue"
+        >
+          <RiPlayListAddLine />
+        </button>
+      )}
     </motion.div>
   );
 }

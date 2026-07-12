@@ -34,8 +34,12 @@ export default function Sidebar() {
     <>
       <aside className="hidden w-64 flex-shrink-0 border-r border-bark/40 bg-ash p-4 md:flex md:flex-col">
         <div className="mb-6 flex items-center gap-2 px-2">
-          <div className="h-7 w-7 rounded-full bg-ember" />
-          <span className="font-display text-xl tracking-tight text-snow">Musico</span>
+          <div className="h-10 w-10 rounded-full bg-bark/60 p-1">
+            <img src="/logo.png" alt="app-logo" width={1030} height={1030} />
+          </div>
+          <span className="font-display text-2xl tracking-tight text-snow">
+            Musico
+          </span>
         </div>
 
         <nav className="space-y-0.5">
@@ -45,7 +49,9 @@ export default function Sidebar() {
 
         <div className="mt-8 flex-1 overflow-y-auto">
           <div className="mb-2 flex items-center justify-between px-2">
-            <span className="font-mono text-[10px] uppercase tracking-widest text-mist">Library</span>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-mist">
+              Library
+            </span>
             <button
               onClick={() => {
                 const p = createPlaylist("My playlist");
@@ -57,8 +63,18 @@ export default function Sidebar() {
               <RiAddLine />
             </button>
           </div>
-          <NavItem to="/liked" icon={<RiHeart3Line />} label="Liked Songs" count={liked.length} />
-          <NavItem to="/recent" icon={<RiTimeLine />} label="Recent" count={recent.length} />
+          <NavItem
+            to="/liked"
+            icon={<RiHeart3Line />}
+            label="Liked Songs"
+            count={liked.length}
+          />
+          <NavItem
+            to="/recent"
+            icon={<RiTimeLine />}
+            label="Recent"
+            count={recent.length}
+          />
 
           {playlists.length > 0 && (
             <>
@@ -91,7 +107,17 @@ export default function Sidebar() {
   );
 }
 
-function NavItem({ to, icon, label, count }: { to: string; icon: React.ReactNode; label: string; count?: number }) {
+function NavItem({
+  to,
+  icon,
+  label,
+  count,
+}: {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  count?: number;
+}) {
   return (
     <NavLink
       to={to}
@@ -165,16 +191,27 @@ function CommandPalette({
             placeholder="Search songs, artists, albums, playlists..."
             className="flex-1 bg-transparent text-snow placeholder:text-mist focus:outline-none"
           />
-          <kbd className="rounded border border-bark bg-bark/60 px-1.5 py-0.5 font-mono text-[10px] text-mist">esc</kbd>
+          <kbd className="rounded border border-bark bg-bark/60 px-1.5 py-0.5 font-mono text-[10px] text-mist">
+            esc
+          </kbd>
         </div>
         <Command.List className="max-h-96 overflow-y-auto p-2">
           <Command.Empty className="p-6 text-center text-sm text-mist">
-            {isFetching ? <div className="flex justify-center"><WobbleLoader size={24} /></div> : "No results."}
+            {isFetching ? (
+              <div className="flex justify-center">
+                <WobbleLoader size={24} />
+              </div>
+            ) : (
+              "No results."
+            )}
           </Command.Empty>
 
           {q.length <= 1 && (
             <>
-              <Command.Group heading="Navigate" className="px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-mist">
+              <Command.Group
+                heading="Navigate"
+                className="px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-mist"
+              >
                 <Command.Item
                   onSelect={() => onSelect("/")}
                   className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-snow aria-selected:bg-bark/60"
@@ -193,45 +230,70 @@ function CommandPalette({
 
           {results && results.length > 0 && (
             <>
-              {results.filter((r) => r.type === "SONG").slice(0, 5).map((r: any) => (
-                <Command.Item
-                  key={r.videoId}
-                  onSelect={() => onSelect(`/song/${r.videoId}`)}
-                  className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 aria-selected:bg-bark/60"
-                >
-                  <img src={r.thumbnails?.[0]?.url} alt="" className="h-8 w-8 rounded object-cover" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-snow">{r.name}</div>
-                    <div className="truncate text-xs text-mist">Song · {r.artist.name}</div>
-                  </div>
-                </Command.Item>
-              ))}
-              {results.filter((r) => r.type === "ARTIST").slice(0, 3).map((r: any) => (
-                <Command.Item
-                  key={r.artistId}
-                  onSelect={() => onSelect(`/artist/${r.artistId}`)}
-                  className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 aria-selected:bg-bark/60"
-                >
-                  <img src={r.thumbnails?.[0]?.url} alt="" className="h-8 w-8 rounded-full object-cover" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-snow">{r.name}</div>
-                    <div className="truncate text-xs text-mist">Artist</div>
-                  </div>
-                </Command.Item>
-              ))}
-              {results.filter((r) => r.type === "ALBUM").slice(0, 3).map((r: any) => (
-                <Command.Item
-                  key={r.albumId}
-                  onSelect={() => onSelect(`/album/${r.albumId}`)}
-                  className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 aria-selected:bg-bark/60"
-                >
-                  <img src={r.thumbnails?.[0]?.url} alt="" className="h-8 w-8 rounded object-cover" />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-snow">{r.name}</div>
-                    <div className="truncate text-xs text-mist">Album · {r.artist.name}</div>
-                  </div>
-                </Command.Item>
-              ))}
+              {results
+                .filter((r) => r.type === "SONG")
+                .slice(0, 5)
+                .map((r: any) => (
+                  <Command.Item
+                    key={r.videoId}
+                    onSelect={() => onSelect(`/song/${r.videoId}`)}
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 aria-selected:bg-bark/60"
+                  >
+                    <img
+                      src={r.thumbnails?.[0]?.url}
+                      alt=""
+                      className="h-8 w-8 rounded object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-snow">{r.name}</div>
+                      <div className="truncate text-xs text-mist">
+                        Song · {r.artist.name}
+                      </div>
+                    </div>
+                  </Command.Item>
+                ))}
+              {results
+                .filter((r) => r.type === "ARTIST")
+                .slice(0, 3)
+                .map((r: any) => (
+                  <Command.Item
+                    key={r.artistId}
+                    onSelect={() => onSelect(`/artist/${r.artistId}`)}
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 aria-selected:bg-bark/60"
+                  >
+                    <img
+                      src={r.thumbnails?.[0]?.url}
+                      alt=""
+                      className="h-8 w-8 rounded-full object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-snow">{r.name}</div>
+                      <div className="truncate text-xs text-mist">Artist</div>
+                    </div>
+                  </Command.Item>
+                ))}
+              {results
+                .filter((r) => r.type === "ALBUM")
+                .slice(0, 3)
+                .map((r: any) => (
+                  <Command.Item
+                    key={r.albumId}
+                    onSelect={() => onSelect(`/album/${r.albumId}`)}
+                    className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 aria-selected:bg-bark/60"
+                  >
+                    <img
+                      src={r.thumbnails?.[0]?.url}
+                      alt=""
+                      className="h-8 w-8 rounded object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm text-snow">{r.name}</div>
+                      <div className="truncate text-xs text-mist">
+                        Album · {r.artist.name}
+                      </div>
+                    </div>
+                  </Command.Item>
+                ))}
             </>
           )}
         </Command.List>

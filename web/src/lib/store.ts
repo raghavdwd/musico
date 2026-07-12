@@ -14,6 +14,7 @@ interface PlayerState {
   volume: number;
   audio: HTMLAudioElement | null;
   load: (song: SongDetailed, queue?: SongDetailed[]) => Promise<void>;
+  addToQueue: (song: SongDetailed) => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
@@ -53,6 +54,17 @@ export const usePlayer = create<PlayerState>((set, get) => {
     duration: 0,
     volume: 1,
     audio: null,
+
+    addToQueue: (song) => {
+      const { queue, queueIndex, current } = get();
+      if (!current) {
+        get().load(song, [song]);
+        return;
+      }
+      const q = [...queue];
+      q.splice(queueIndex + 1, 0, song);
+      set({ queue: q });
+    },
 
     load: async (song, queue) => {
       const audio = ensureAudio();
