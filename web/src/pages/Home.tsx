@@ -9,21 +9,21 @@ import Section from "../components/home/Section";
 import { bestThumb } from "../lib/format";
 import { usePlayer } from "../lib/store";
 import { MirageLoader, CenteredLoader } from "../components/ui/Loaders";
-import { buildRecommendedSongs } from "../lib/recommendations";
 import { useTaste } from "../lib/taste";
+import { useHomeRecommendations } from "../lib/homeRecommendations";
 
 export default function Home() {
   const { data, isLoading } = useQuery({
     queryKey: ["home"],
     queryFn: api.getRecommendations,
   });
-  const { liked, recent, playlists, getPlaylistSongs } = useLibrary();
+  const { liked, recent, playlists } = useLibrary();
   const { profile } = useTaste();
   const navigate = useNavigate();
   const load = usePlayer((s) => s.load);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
-
+  const { allSongs, recommendedSongs, setSections } = useHomeRecommendations();
   const sections = useMemo(
     () =>
       (data || []).map((s) => ({
@@ -33,18 +33,9 @@ export default function Home() {
     [data],
   );
 
-  const { allSongs, recommendedSongs } = useMemo(
-    () =>
-      buildRecommendedSongs({
-        sections,
-        liked,
-        recent,
-        playlists,
-        getPlaylistSongs,
-        profile,
-      }),
-    [sections, liked, recent, playlists, getPlaylistSongs, profile],
-  );
+  useEffect(() => {
+    setSections(sections);
+  }, [sections, setSections]);
 
   const hasTasteSignals =
     !!profile?.favoriteArtists.length ||
@@ -78,30 +69,6 @@ export default function Home() {
     [hasTasteSignals, recommendedSongs, allSongs],
   );
   const showRecommendationRail = hasTasteSignals && recommendationRailSongs.length > 0;
-
-  useEffect(() => {
-    console.debug("[DEBUG-taste] Home state", {
-      hasProfile: !!profile,
-      seenArtists: profile?.favoriteArtists.length ?? 0,
-      seenSongs: profile?.favoriteSongs.length ?? 0,
-      liked: liked.length,
-      recent: recent.length,
-      playlists: playlists.length,
-      allSongs: allSongs.length,
-      recommendedSongs: recommendedSongs.length,
-      heroSong: heroSong?.videoId ?? null,
-      showRecommendationRail,
-    });
-  }, [
-    profile,
-    liked.length,
-    recent.length,
-    playlists.length,
-    allSongs.length,
-    recommendedSongs.length,
-    heroSong?.videoId,
-    showRecommendationRail,
-  ]);
 
   if (isLoading) {
     return (
