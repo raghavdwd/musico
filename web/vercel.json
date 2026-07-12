@@ -1,0 +1,5 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://server-dun-psi-37.vercel.app/api/$1" }
+  ]
+}
