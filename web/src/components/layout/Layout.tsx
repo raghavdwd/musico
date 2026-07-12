@@ -1,11 +1,12 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RiSearch2Line } from "react-icons/ri";
 import Sidebar from "./Sidebar";
 import PlayerBar from "../player/PlayerBar";
 import FullPlayer from "../player/FullPlayer";
 import QueuePanel from "../player/QueuePanel";
+import { usePlayer } from "../../lib/store";
 import { Toaster } from "sonner";
 import AddToPlaylist from "../ui/AddToPlaylist";
 
@@ -40,6 +41,15 @@ function TopSearchBar() {
 export default function Layout() {
   const location = useLocation();
   const isSearchPage = location.pathname === "/search";
+
+  // Restore playback from localStorage on mount
+  useEffect(() => {
+    const state = usePlayer.getState();
+    if (state.current) {
+      state.prepareFromStorage();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex h-screen min-w-0 flex-col bg-void text-snow">

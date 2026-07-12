@@ -16,6 +16,7 @@ interface PlayerState {
   load: (song: SongDetailed, queue?: SongDetailed[]) => Promise<void>;
   addToQueue: (song: SongDetailed) => void;
   removeFromQueue: (index: number) => void;
+  reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearQueue: () => void;
   toggle: () => void;
   next: () => void;
@@ -27,6 +28,7 @@ interface PlayerState {
   isQueueOpen: boolean;
   openQueue: () => void;
   closeQueue: () => void;
+  prepareFromStorage: () => Promise<void>;
 }
 
 export const usePlayer = create<PlayerState>((set, get) => {
@@ -75,9 +77,30 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const { queue, queueIndex } = get();
       if (index < 0 || index >= queue.length) return;
       const q = queue.filter((_, i) => i !== index);
-      // Adjust queueIndex if we removed something before it
       const newIdx = index < queueIndex ? queueIndex - 1 : queueIndex;
       set({ queue: q, queueIndex: newIdx < 0 ? 0 : Math.min(newIdx, q.length - 1) });
+    },
+
+    reorderQueue: (fromIndex, toIndex) => {
+      const { queue, queueIndex } = get();
+      if (fromIndex < 0 || fromIndex >= queue.length) return;
+      if (toIndex < 0 || toIndex >= queue.length) return;
+      if (fromIndex === toIndex) return;
+
+      const q = [...queue];
+      const [moved] = q.splice(fromIndex, 1);
+      q.splice(toIndex, 0, moved);
+
+      let newIdx = queueIndex;
+      if (fromIndex === queueIndex) {
+        newIdx = toIndex;
+      } else if (fromIndex < queueIndex && toIndex >= queueIndex) {
+        newIdx = queueIndex - 1;
+      } else if (fromIndex > queueIndex && toIndex <= queueIndex) {
+        newIdx = queueIndex + 1;
+      }
+
+      set({ queue: q, queueIndex: newIdx });
     },
 
     clearQueue: () => {
@@ -90,11 +113,16 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     load: async (song, queue) => {
+      // Safety check — prevent setting a null/undefined current
+      if (!song) {
+        console.warn("load called with no song");
+        return;
+      }
+
       const audio = ensureAudio();
       const q = queue ?? [song];
       const idx = q.findIndex((s) => s.videoId === song.videoId);
 
-      // Mark this song as current + loading right away
       set({
         current: song,
         queue: q,
@@ -109,11 +137,34 @@ export const usePlayer = create<PlayerState>((set, get) => {
         audio.volume = get().volume;
         audio.src = streamUrl;
         await audio.play();
-        // isPlaying is set by the onplay event handler,
-        // but also set it explicitly as a fallback in case the event is delayed
         set({ isLoading: false, isPlaying: true });
       } catch (err) {
         console.error("Failed to play song:", err);
+        set({ isLoading: false });
+      }
+    },
+
+    prepareFromStorage: async () => {
+      const { current, queue, queueIndex, progress, volume } = get();
+      if (!current) return;
+
+      const audio = ensureAudio();
+      audio.volume = volume;
+      set({ isLoading: true, isExpanded: false });
+
+      try {
+        const streamUrl = await getStreamUrl(current.videoId);
+        audio.src = streamUrl;
+        const onCanPlay = () => {
+          audio.removeEventListener("canplay", onCanPlay);
+          if (progress > 0 && isFinite(audio.duration) && progress < audio.duration) {
+            audio.currentTime = progress;
+          }
+        };
+        audio.addEventListener("canplay", onCanPlay);
+        set({ isLoading: false });
+      } catch (err) {
+        console.error("Failed to restore playback:", err);
         set({ isLoading: false });
       }
     },
@@ -128,7 +179,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
     next: () => {
       const { queue, queueIndex } = get();
       if (queueIndex < queue.length - 1) {
-        get().load(queue[queueIndex + 1]!, queue);
+        const nextSong = queue[queueIndex + 1];
+        if (nextSong) {
+          get().load(nextSong, queue);
+        }
       }
     },
 
@@ -139,7 +193,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
         return;
       }
       if (queueIndex > 0) {
-        get().load(queue[queueIndex - 1]!, queue);
+        const prevSong = queue[queueIndex - 1];
+        if (prevSong) {
+          get().load(prevSong, queue);
+        }
       }
     },
 
@@ -162,4 +219,75 @@ export const usePlayer = create<PlayerState>((set, get) => {
     openQueue: () => set({ isQueueOpen: true }),
     closeQueue: () => set({ isQueueOpen: false }),
   };
+});
+
+// ─── Manual persistence (avoiding persist middleware to prevent potential state conflicts) ───
+
+const STORAGE_KEY = "musico-player";
+
+function saveToStorage(state: PlayerState) {
+  try {
+    const data = JSON.stringify({
+      current: state.current,
+      queue: state.queue,
+      queueIndex: state.queueIndex,
+      progress: state.progress,
+      volume: state.volume,
+    });
+    localStorage.setItem(STORAGE_KEY, data);
+  } catch (err) {
+    console.warn("Failed to persist player state:", err);
+  }
+}
+
+function loadFromStorage(): Partial<PlayerState> | null {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) return null;
+    const parsed = JSON.parse(saved);
+    return {
+      current: parsed.current ?? null,
+      queue: parsed.queue ?? [],
+      queueIndex: parsed.queueIndex ?? -1,
+      progress: parsed.progress ?? 0,
+      volume: parsed.volume ?? 1,
+    };
+  } catch (err) {
+    console.warn("Failed to restore player state:", err);
+    return null;
+  }
+}
+
+// Restore saved state immediately (synchronous, before React renders)
+const saved = loadFromStorage();
+if (saved) {
+  usePlayer.setState({
+    current: saved.current,
+    queue: saved.queue,
+    queueIndex: saved.queueIndex,
+    progress: saved.progress,
+    volume: saved.volume,
+  });
+}
+
+// Persist critical changes immediately, debounce progress-only updates
+let progressTimer: ReturnType<typeof setTimeout> | null = null;
+let lastSaved = "";
+usePlayer.subscribe((state) => {
+  const snapshot = JSON.stringify({
+    current: state.current?.videoId,
+    queueLen: state.queue.length,
+    queueIndex: state.queueIndex,
+    volume: state.volume,
+  });
+  if (snapshot !== lastSaved) {
+    lastSaved = snapshot;
+    // Critical fields changed — save immediately
+    saveToStorage(state);
+    if (progressTimer) clearTimeout(progressTimer);
+  } else {
+    // Only progress/timing changed — debounce
+    if (progressTimer) clearTimeout(progressTimer);
+    progressTimer = setTimeout(() => saveToStorage(state), 2000);
+  }
 });
