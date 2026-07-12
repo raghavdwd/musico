@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { logger } from "../lib/logger.ts";
 
 export class AppError extends Error {
   constructor(
@@ -13,10 +14,15 @@ export class AppError extends Error {
 
 export function errorHandler(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction,
 ) {
+  logger.error(err, {
+    method: req.method,
+    url: req.originalUrl,
+  });
+
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       error: { code: err.code, message: err.message },
@@ -24,7 +30,6 @@ export function errorHandler(
     return;
   }
 
-  console.error("Unhandled error:", err);
   res.status(500).json({
     error: { code: "INTERNAL_ERROR", message: "Something went wrong" },
   });

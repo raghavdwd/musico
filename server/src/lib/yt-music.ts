@@ -5,7 +5,9 @@ let api: YTMusic | null = null;
 export async function getYTMusic(): Promise<YTMusic> {
   if (!api) {
     api = new YTMusic();
-    await api.initialize();
+    await api.initialize({
+      cookies: process.env.YT_MUSIC_COOKIE,
+    });
   }
   return api;
 }
