@@ -1,0 +1,11 @@
+**/node_modules
+**/.env
+**/logs
+.git
+.commandcode
+web
+server/logs
+server/node_modules
+*.md
+Dockerfile
+Dockerfile.vercel

@@ -1,0 +1,31 @@
+# syntax=docker/dockerfile:1
+
+# Build context is the ./server directory (deployed as its own Vercel project).
+
+# ── deps: install yt-dlp (needs python3) + ffmpeg for audio streaming ──
+FROM oven/bun:1 AS deps
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-pip ffmpeg ca-certificates \
+    && pip3 install --break-system-packages --no-cache-dir yt-dlp \
+    && rm -rf /var/lib/apt/lists/*
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+# ── runtime ──
+FROM oven/bun:1
+WORKDIR /app
+ENV NODE_ENV=production
+# Vercel routes traffic to $PORT (defaults to 80 in the container runtime).
+ENV PORT=80
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      python3 python3-pip ffmpeg ca-certificates \
+    && pip3 install --break-system-packages --no-cache-dir yt-dlp \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json bun.lock ./
+COPY src ./src
+
+# Bun executes the TS entry directly; no build step needed.
+CMD ["bun", "run", "src/app.ts"]
