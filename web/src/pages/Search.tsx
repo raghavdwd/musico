@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useDebounce } from "use-debounce";
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { motion } from "motion/react";
 import { RiSearch2Line } from "react-icons/ri";
 import * as api from "../api";
@@ -10,7 +10,7 @@ import MediaCard from "../components/cards/MediaCard";
 import { HelixLoader, OrbitLoader } from "../components/ui/Loaders";
 import { usePlayer } from "../lib/store";
 import { toast } from "sonner";
-import type { SearchResult } from "../types";
+import type { SearchResult, SongDetailed } from "../types";
 
 export default function Search() {
   const [params] = useSearchParams();
@@ -24,11 +24,33 @@ export default function Search() {
     enabled: debounced.length > 0,
   });
 
-  const { addToQueue } = usePlayer();
+  const { addToQueue, load } = usePlayer();
 
   const songs = (data || []).filter((r): r is Extract<SearchResult, { type: "SONG" }> => r.type === "SONG");
   const artists = (data || []).filter((r): r is Extract<SearchResult, { type: "ARTIST" }> => r.type === "ARTIST");
   const albums = (data || []).filter((r): r is Extract<SearchResult, { type: "ALBUM" }> => r.type === "ALBUM");
+
+  // When playing from search, don't queue all search results — fetch recommendations instead
+  const playSearchSong = useCallback(async (song: SongDetailed) => {
+    // Start playing the song immediately with just itself in the queue
+    load(song);
+
+    // Fetch recommendations in the background to populate the queue
+    try {
+      const recs = await api.getRecommendations();
+      const recSongs: SongDetailed[] = (recs ?? [])
+        .flatMap((s) => s.contents.filter((c): c is SongDetailed => c.type === "SONG"))
+        .filter((s) => s.videoId !== song.videoId)
+        .slice(0, 15);
+
+      if (recSongs.length > 0) {
+        // Replace the queue with the song + recommendations
+        usePlayer.setState({ queue: [song, ...recSongs], queueIndex: 0 });
+      }
+    } catch (err) {
+      console.error("Failed to fetch recommendations:", err);
+    }
+  }, [load]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-8">
@@ -69,7 +91,13 @@ export default function Search() {
             <section className="space-y-2">
               <h2 className="font-display text-2xl text-snow">Songs</h2>
               {songs.slice(0, 8).map((song, i) => (
-                <SongRow key={song.videoId} song={song} index={i} queue={songs} onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }} />
+                <SongRow
+                  key={song.videoId}
+                  song={song}
+                  index={i}
+                  onClick={() => playSearchSong(song)}
+                  onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }}
+                />
               ))}
             </section>
           )}
