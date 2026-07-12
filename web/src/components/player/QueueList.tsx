@@ -77,7 +77,7 @@ function SortableQueueItem({
           {song.name}
         </div>
         <div className="truncate text-xs text-mist">
-          {song.artist.name}
+          {song.artist?.name ?? "Unknown artist"}
         </div>
       </div>
       <span className="hidden flex-shrink-0 font-mono text-xs tabular-nums text-mist sm:block">

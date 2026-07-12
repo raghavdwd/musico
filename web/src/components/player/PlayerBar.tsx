@@ -10,6 +10,7 @@ import {
   RiHeartFill,
   RiHeartLine,
   RiPlayList2Fill,
+  RiRadioLine,
 } from "react-icons/ri";
 import { useEffect, useRef, useState } from "react";
 import { usePlayer } from "../../lib/store";
@@ -98,6 +99,9 @@ export default function PlayerBar() {
     closeQueue,
     queue,
     queueIndex,
+    isRadio,
+    startRadio,
+    stopRadio,
   } = usePlayer();
   const { liked, toggleLike, pushRecent } = useLibrary();
   const [muted, setMuted] = useState(false);
@@ -209,6 +213,19 @@ export default function PlayerBar() {
               {queue.length - queueIndex - 1}
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => isRadio ? stopRadio() : startRadio(current)}
+          className={`relative flex-shrink-0 rounded-full p-2 transition-colors ${
+            isRadio
+              ? "bg-ember/20 text-ember"
+              : "text-mist hover:text-ember hover:bg-bark/60"
+          }`}
+          aria-label={isRadio ? "Stop radio" : "Start radio"}
+          title={isRadio ? "Stop radio" : "Start radio"}
+        >
+          <RiRadioLine className={isRadio ? "animate-pulse" : ""} />
         </button>
 
         <button

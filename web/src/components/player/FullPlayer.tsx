@@ -10,6 +10,7 @@ import {
   RiHeartLine,
   RiPlayList2Fill,
   RiMenuLine,
+  RiRadioLine,
 } from "react-icons/ri";
 import { usePlayer } from "../../lib/store";
 import { useLibrary } from "../../lib/library";
@@ -56,7 +57,7 @@ export function LyricsPanel() {
 }
 
 export default function FullPlayer() {
-  const { current, isPlaying, isLoading, toggle, next, prev, seek, progress, duration, isExpanded, collapse, queue, queueIndex } = usePlayer();
+  const { current, isPlaying, isLoading, toggle, next, prev, seek, progress, duration, isExpanded, collapse, queue, queueIndex, isRadio, startRadio, stopRadio } = usePlayer();
   const { liked, toggleLike } = useLibrary();
   const [dragging, setDragging] = useState<boolean>(false);
   const [localValue, setLocalValue] = useState(progress);
@@ -217,6 +218,18 @@ export default function FullPlayer() {
                     aria-label={isLiked ? "Unlike" : "Like"}
                   >
                     {isLiked ? <RiHeartFill className="text-2xl" /> : <RiHeartLine className="text-2xl" />}
+                  </button>
+                  <button
+                    onClick={() => isRadio ? stopRadio() : startRadio(current)}
+                    className={`rounded-full p-3 transition-colors ${
+                      isRadio
+                        ? "bg-ember/20 text-ember"
+                        : "text-mist hover:bg-bark/60 hover:text-ember"
+                    }`}
+                    aria-label={isRadio ? "Stop radio" : "Start radio"}
+                    title={isRadio ? "Stop radio" : "Start radio"}
+                  >
+                    <RiRadioLine className={`text-2xl ${isRadio ? "animate-pulse" : ""}`} />
                   </button>
                   <button
                     onClick={() => setPanel(panel === "queue" ? "lyrics" : "queue")}

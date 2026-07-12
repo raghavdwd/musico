@@ -1,5 +1,5 @@
 import type {
-  SearchResult, SongFull, AlbumFull, ArtistFull, PlaylistFull,
+  SearchResult, SongFull, SongDetailed, AlbumFull, ArtistFull, PlaylistFull,
   HomeSection,
 } from "./types.ts";
 
@@ -12,6 +12,9 @@ async function fetchJson<T>(url: string): Promise<T> {
     throw new Error(body?.error?.message || `HTTP ${res.status}`);
   }
   const json = await res.json() as { data: T };
+  if (json.data === undefined) {
+    throw new Error(`Empty response from ${url}`);
+  }
   return json.data;
 }
 
@@ -46,4 +49,8 @@ export function getStreamUrl(videoId: string): Promise<string> {
 
 export function getRecommendations(): Promise<HomeSection[]> {
   return fetchJson(`${BASE}/recommendations`);
+}
+
+export function getRadio(videoId: string): Promise<SongDetailed[]> {
+  return fetchJson(`${BASE}/radio/${videoId}`);
 }

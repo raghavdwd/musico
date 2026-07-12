@@ -5,6 +5,7 @@ import {
   RiPlayFill,
   RiAddLine,
   RiPlayListAddLine,
+  RiRadioLine,
 } from "react-icons/ri";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ interface Props {
   showArt?: boolean;
   onClick?: () => void;
   onAddToQueue?: (song: SongDetailed) => void;
+  onRadio?: (song: SongDetailed) => void;
 }
 
 export default function SongRow({
@@ -33,6 +35,7 @@ export default function SongRow({
   showArt = true,
   onClick,
   onAddToQueue,
+  onRadio,
 }: Props) {
   const { load, current, isPlaying, isLoading, toggle } = usePlayer();
   const { isLiked, toggleLike } = useLibrary();
@@ -70,9 +73,11 @@ export default function SongRow({
       }}
       transition={{ duration: 0.3 }}
       className={`group relative grid items-center gap-3 rounded-md px-2 py-1.5 transition-colors ${
-        onAddToQueue
-          ? "grid-cols-[24px_1fr_60px_40px_40px_40px]"
-          : "grid-cols-[24px_1fr_60px_40px_40px]"
+        onAddToQueue && onRadio
+          ? "grid-cols-[24px_1fr_60px_40px_40px_40px_40px]"
+          : onAddToQueue || onRadio
+            ? "grid-cols-[24px_1fr_60px_40px_40px_40px]"
+            : "grid-cols-[24px_1fr_60px_40px_40px]"
       } ${isBuffering ? "" : "hover:bg-bark/60"}`}
     >
       <button
@@ -161,6 +166,20 @@ export default function SongRow({
           aria-label="Add to queue"
         >
           <RiPlayListAddLine />
+        </button>
+      )}
+
+      {onRadio && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onRadio(song);
+          }}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-mist opacity-0 transition-colors hover:text-ember group-hover:opacity-100"
+          aria-label="Start radio"
+          title="Start radio"
+        >
+          <RiRadioLine />
         </button>
       )}
     </motion.div>

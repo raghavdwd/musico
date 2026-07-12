@@ -11,6 +11,7 @@ import v0Artists from "./routes/v0/artists.ts";
 import v0Lyrics from "./routes/v0/lyrics.ts";
 import v0Stream from "./routes/v0/stream.ts";
 import v0Recommendations from "./routes/v0/recommendations.ts";
+import v0Radio from "./routes/v0/radio.ts";
 
 import v1Search from "./routes/v1/search.ts";
 import v1Songs from "./routes/v1/songs.ts";
@@ -20,7 +21,6 @@ import v1Artists from "./routes/v1/artists.ts";
 import v1Lyrics from "./routes/v1/lyrics.ts";
 import v1Stream from "./routes/v1/stream.ts";
 import v1Recommendations from "./routes/v1/recommendations.ts";
-
 const app = express();
 
 const mount = (base: string) => {
@@ -32,6 +32,7 @@ const mount = (base: string) => {
   app.use(`${base}/lyrics`, v0Lyrics);
   app.use(`${base}/stream`, v0Stream);
   app.use(`${base}/recommendations`, v0Recommendations);
+  app.use(`${base}/radio`, v0Radio);
 };
 
 // same behavior, versioned URLs

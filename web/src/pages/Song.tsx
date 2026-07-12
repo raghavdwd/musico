@@ -1,6 +1,6 @@
 import { useParams } from "react-router-dom";
 import { motion } from "motion/react";
-import { RiPlayFill, RiShareLine, RiPlayListAddLine } from "react-icons/ri";
+import { RiPlayFill, RiShareLine, RiPlayListAddLine, RiRadioLine } from "react-icons/ri";
 import { useSong, useLyrics, useArtist, useHome } from "../hooks/useApi";
 import { usePlayer } from "../lib/store";
 import { useLibrary } from "../lib/library";
@@ -14,7 +14,7 @@ export default function Song() {
   const { id } = useParams();
   const { data: song, isLoading } = useSong(id);
   const { data: lyrics, isLoading: lyricsLoading } = useLyrics(id);
-  const { load, addToQueue, current, isPlaying, toggle } = usePlayer();
+  const { load, addToQueue, current, isPlaying, toggle, isRadio, startRadio, stopRadio } = usePlayer();
   const { liked, toggleLike } = useLibrary();
 
   const { data: artist } = useArtist(song?.artist?.artistId ?? undefined);
@@ -89,6 +89,17 @@ export default function Song() {
             >
               <RiPlayFill />
               {isCurrent && isPlaying ? "Pause" : "Play"}
+            </button>
+            <button
+              onClick={() => isRadio ? stopRadio() : startRadio(songDetailed)}
+              className={`flex items-center gap-1.5 rounded-full border px-5 py-2 text-sm transition-colors ${
+                isRadio
+                  ? "border-ember bg-ember/20 text-ember"
+                  : "border-bark bg-ash/60 text-snow hover:bg-bark/60"
+              }`}
+            >
+              <RiRadioLine className={isRadio ? "animate-pulse" : ""} />
+              {isRadio ? "Radio On" : "Radio"}
             </button>
             <button
               onClick={() => toggleLike(songDetailed)}

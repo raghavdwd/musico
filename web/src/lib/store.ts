@@ -1,6 +1,37 @@
 import { create } from "zustand";
-import { getStreamUrl } from "../api";
+import { getStreamUrl, getRadio } from "../api";
 import type { SongDetailed } from "../types";
+
+const RADIO_REFRESH_THRESHOLD = 3;
+
+type SongLike = Partial<SongDetailed> & {
+  artists?: ArtistLike[];
+};
+
+type ArtistLike = {
+  artistId?: string | null;
+  id?: string | null;
+  name?: string;
+};
+
+function normalizeSong(song: SongLike | null | undefined): SongDetailed | null {
+  if (!song?.videoId || !song.name) return null;
+  const artist = (song.artist ?? song.artists?.[0]) as ArtistLike | undefined;
+  if (!artist?.name) return null;
+
+  return {
+    type: "SONG",
+    videoId: song.videoId,
+    name: song.name,
+    artist: {
+      artistId: artist.artistId ?? artist.id ?? null,
+      name: artist.name,
+    },
+    album: song.album ?? null,
+    duration: song.duration ?? null,
+    thumbnails: song.thumbnails ?? [],
+  };
+}
 
 interface PlayerState {
   current: SongDetailed | null;
@@ -28,6 +59,10 @@ interface PlayerState {
   isQueueOpen: boolean;
   openQueue: () => void;
   closeQueue: () => void;
+  isRadio: boolean;
+  radioSeed: SongDetailed | null;
+  startRadio: (song: SongDetailed) => Promise<void>;
+  stopRadio: () => void;
   prepareFromStorage: () => Promise<void>;
 }
 
@@ -64,12 +99,14 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     addToQueue: (song) => {
       const { queue, queueIndex, current } = get();
+      const nextSong = normalizeSong(song);
+      if (!nextSong) return;
       if (!current) {
-        get().load(song, [song]);
+        get().load(nextSong, [nextSong]);
         return;
       }
       const q = [...queue];
-      q.splice(queueIndex + 1, 0, song);
+      q.splice(queueIndex + 1, 0, nextSong);
       set({ queue: q });
     },
 
@@ -114,26 +151,30 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     load: async (song, queue) => {
       // Safety check — prevent setting a null/undefined current
-      if (!song) {
+      const normalizedSong = normalizeSong(song);
+      if (!normalizedSong) {
         console.warn("load called with no song");
         return;
       }
 
       const audio = ensureAudio();
-      const q = queue ?? [song];
-      const idx = q.findIndex((s) => s.videoId === song.videoId);
+      const q = (queue ?? [normalizedSong])
+        .map((item) => normalizeSong(item))
+        .filter((item): item is SongDetailed => item !== null);
+      const queueItems = q.length > 0 ? q : [normalizedSong];
+      const idx = queueItems.findIndex((s) => s.videoId === normalizedSong.videoId);
 
       set({
-        current: song,
-        queue: q,
-        queueIndex: idx,
+        current: normalizedSong,
+        queue: queueItems,
+        queueIndex: idx >= 0 ? idx : 0,
         isLoading: true,
         progress: 0,
         duration: 0,
       });
 
       try {
-        const streamUrl = await getStreamUrl(song.videoId);
+        const streamUrl = await getStreamUrl(normalizedSong.videoId);
         audio.volume = get().volume;
         audio.src = streamUrl;
         await audio.play();
@@ -145,7 +186,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     prepareFromStorage: async () => {
-      const { current, queue, queueIndex, progress, volume } = get();
+      const { current, progress, volume } = get();
       if (!current) return;
 
       const audio = ensureAudio();
@@ -177,11 +218,26 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     next: () => {
-      const { queue, queueIndex } = get();
+      const { queue, queueIndex, isRadio, radioSeed } = get();
       if (queueIndex < queue.length - 1) {
         const nextSong = queue[queueIndex + 1];
         if (nextSong) {
           get().load(nextSong, queue);
+
+          // Radio auto-refresh: if radio is active and queue is running low, fetch more
+          if (isRadio && radioSeed && queueIndex + 1 >= queue.length - RADIO_REFRESH_THRESHOLD) {
+            getRadio(radioSeed.videoId).then((radioSongs) => {
+              const state = get();
+              const freshRecs = radioSongs.filter(
+                (s) => !state.queue.some((qs) => qs.videoId === s.videoId),
+              );
+              if (freshRecs.length > 0) {
+                set({ queue: [...state.queue, ...freshRecs] });
+              }
+            }).catch((err) => {
+              console.warn("Failed to refresh radio:", err);
+            });
+          }
         }
       }
     },
@@ -218,6 +274,30 @@ export const usePlayer = create<PlayerState>((set, get) => {
     isQueueOpen: false,
     openQueue: () => set({ isQueueOpen: true }),
     closeQueue: () => set({ isQueueOpen: false }),
+
+    isRadio: false,
+    radioSeed: null,
+
+    startRadio: async (song) => {
+      const normalizedSong = normalizeSong(song);
+      if (!normalizedSong) return;
+      set({ isRadio: true, radioSeed: normalizedSong, isLoading: true });
+
+      try {
+        const radioSongs = (await getRadio(normalizedSong.videoId))
+          .map((item) => normalizeSong(item))
+          .filter((item): item is SongDetailed => item !== null);
+        const queue = [normalizedSong, ...radioSongs];
+        get().load(normalizedSong, queue);
+      } catch (err) {
+        console.error("Failed to start radio:", err);
+        set({ isRadio: false, radioSeed: null, isLoading: false });
+      }
+    },
+
+    stopRadio: () => {
+      set({ isRadio: false, radioSeed: null });
+    },
   };
 });
 
@@ -244,11 +324,28 @@ function loadFromStorage(): Partial<PlayerState> | null {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (!saved) return null;
-    const parsed = JSON.parse(saved);
+    const parsed = JSON.parse(saved) as {
+      current?: SongLike | null;
+      queue?: unknown;
+      queueIndex?: number;
+      progress?: number;
+      volume?: number;
+    };
+    const current = normalizeSong(parsed.current);
+    const queue = Array.isArray(parsed.queue)
+      ? parsed.queue
+          .map((item: unknown) => normalizeSong(item as SongLike))
+          .filter((item): item is SongDetailed => item !== null)
+      : [];
+    const hydratedQueue = current
+      ? (queue.some((song) => song.videoId === current.videoId) ? queue : [current, ...queue])
+      : queue;
     return {
-      current: parsed.current ?? null,
-      queue: parsed.queue ?? [],
-      queueIndex: parsed.queueIndex ?? -1,
+      current,
+      queue: hydratedQueue,
+      queueIndex: current
+        ? hydratedQueue.findIndex((song: SongDetailed) => song.videoId === current.videoId)
+        : parsed.queueIndex ?? -1,
       progress: parsed.progress ?? 0,
       volume: parsed.volume ?? 1,
     };
