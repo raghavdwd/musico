@@ -15,6 +15,14 @@
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
+[data-theme="light"] {
+  --color-void: #f4f0e8;
+  --color-ash: #e8e3da;
+  --color-bark: #d8d2c8;
+  --color-mist: #6b655d;
+  --color-snow: #1a1815;
+}
+
 @layer base {
   *,
   *::before,

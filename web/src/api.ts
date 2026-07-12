@@ -42,9 +42,10 @@ export function getLyrics(videoId: string): Promise<string[]> {
   return fetchJson(`${BASE}/lyrics/${videoId}`);
 }
 
-export function getStreamUrl(videoId: string): Promise<string> {
+export function getStreamUrl(videoId: string, quality = "auto"): Promise<string> {
   // The server proxies the audio. The URL itself is the stream endpoint.
-  return Promise.resolve(`${BASE}/stream/${videoId}`);
+  const q = quality === "auto" ? "" : `?q=${encodeURIComponent(quality)}`;
+  return Promise.resolve(`${BASE}/stream/${videoId}${q}`);
 }
 
 export function getRecommendations(): Promise<HomeSection[]> {

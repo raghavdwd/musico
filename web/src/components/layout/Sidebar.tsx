@@ -6,6 +6,7 @@ import {
   RiTimeLine,
   RiAddLine,
   RiMusic2Line,
+  RiSettings3Line,
 } from "react-icons/ri";
 import { Command } from "cmdk";
 import { useState, useEffect } from "react";
@@ -45,6 +46,7 @@ export default function Sidebar() {
         <nav className="space-y-0.5">
           <NavItem to="/" icon={<RiHome5Line />} label="Home" />
           <NavItem to="/search" icon={<RiSearch2Line />} label="Search" />
+          <NavItem to="/settings" icon={<RiSettings3Line />} label="Settings" />
         </nav>
 
         <div className="mt-8 flex-1 overflow-y-auto">
@@ -223,6 +225,12 @@ function CommandPalette({
                   className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-snow aria-selected:bg-bark/60"
                 >
                   <RiHeart3Line /> Liked songs
+                </Command.Item>
+                <Command.Item
+                  onSelect={() => onSelect("/settings")}
+                  className="flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 text-sm text-snow aria-selected:bg-bark/60"
+                >
+                  <RiSettings3Line /> Settings
                 </Command.Item>
               </Command.Group>
             </>

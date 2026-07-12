@@ -23,8 +23,28 @@ function mimeFromExt(ext: string): string {
   return "audio/mpeg";
 }
 
-export async function getStreamUrl(songId: string): Promise<StreamData> {
-  const cacheKey = `stream:${songId}`;
+export type StreamQuality = "auto" | "high" | "medium" | "low";
+
+function formatForQuality(quality: StreamQuality): string {
+  // yt-dlp format selectors mapped to YouTube Music audio bitrates.
+  switch (quality) {
+    case "high":
+      return "bestaudio[abr>=256]/bestaudio";
+    case "medium":
+      return "bestaudio[abr=128]/bestaudio[abr<=160]/bestaudio";
+    case "low":
+      return "bestaudio[abr<=64]/worstaudio/bestaudio";
+    case "auto":
+    default:
+      return "bestaudio/best";
+  }
+}
+
+export async function getStreamUrl(
+  songId: string,
+  quality: StreamQuality = "auto",
+): Promise<StreamData> {
+  const cacheKey = `stream:${songId}:${quality}`;
   const cached = await getCache<StreamData>(cacheKey);
   if (cached) return cached;
 
@@ -35,7 +55,7 @@ export async function getStreamUrl(songId: string): Promise<StreamData> {
       "--no-progress",
       "--quiet",
       "--dump-json",
-      "--format", "bestaudio/best",
+      "--format", formatForQuality(quality),
       "--no-playlist",
       "--extractor-args", "youtube:player_client=tv,web,android_vr,ios",
       `https://music.youtube.com/watch?v=${songId}`,

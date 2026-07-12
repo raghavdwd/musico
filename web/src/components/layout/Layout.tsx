@@ -9,6 +9,7 @@ import QueuePanel from "../player/QueuePanel";
 import { usePlayer } from "../../lib/store";
 import { Toaster } from "sonner";
 import AddToPlaylist from "../ui/AddToPlaylist";
+import ThemeProvider from "./ThemeProvider";
 import { useTaste } from "../../lib/taste";
 
 function TopSearchBar() {
@@ -62,6 +63,7 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen min-w-0 flex-col bg-void text-snow">
+      <ThemeProvider />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar />
         <main className="flex-1 min-w-0 overflow-y-auto">

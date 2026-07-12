@@ -1,8 +1,32 @@
 import { create } from "zustand";
 import { getStreamUrl, getRadio } from "../api";
 import type { SongDetailed } from "../types";
+import { useSettings } from "./settings";
+
+// Web Audio graph: a single gain node routes the HTMLAudioElement so volume
+// and crossfade can be applied programmatically.
+let audioCtx: AudioContext | null = null;
+let gainNode: GainNode | null = null;
+
+function getGain(): GainNode | null {
+  if (typeof window === "undefined") return null;
+  if (!audioCtx) {
+    const Ctx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
+    if (!Ctx) return null;
+    audioCtx = new Ctx();
+    gainNode = audioCtx.createGain();
+    gainNode.connect(audioCtx.destination);
+  }
+  return gainNode;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const RADIO_REFRESH_THRESHOLD = 3;
+type RepeatMode = "off" | "one" | "all";
 
 type SongLike = Partial<SongDetailed> & {
   artists?: ArtistLike[];
@@ -40,6 +64,7 @@ interface PlayerState {
   isPlaying: boolean;
   isExpanded: boolean;
   isLoading: boolean;
+  repeatMode: RepeatMode;
   progress: number;
   duration: number;
   volume: number;
@@ -63,6 +88,7 @@ interface PlayerState {
   radioSeed: SongDetailed | null;
   startRadio: (song: SongDetailed) => Promise<void>;
   stopRadio: () => void;
+  cycleRepeatMode: () => void;
   prepareFromStorage: () => Promise<void>;
 }
 
@@ -71,10 +97,30 @@ export const usePlayer = create<PlayerState>((set, get) => {
     let audio = get().audio;
     if (!audio) {
       audio = new Audio();
+      const gain = getGain();
+      if (gain) {
+        try {
+          const source = audioCtx!.createMediaElementSource(audio);
+          source.connect(gain);
+        } catch {
+          // createMediaElementSource throws if called twice on the same element;
+          // safe to ignore since we only create audio once.
+        }
+      }
       audio.ontimeupdate = () => {
         set({ progress: audio!.currentTime, duration: audio!.duration || 0 });
       };
-      audio.onended = () => get().next();
+      audio.onended = () => {
+        if (get().repeatMode === "one" && get().current) {
+          if (!audio) return;
+          const player = audio;
+          player.currentTime = 0;
+          void player.play();
+          set({ progress: 0, isPlaying: true });
+          return;
+        }
+        get().next();
+      };
       audio.onplay = () => set({ isPlaying: true });
       audio.onpause = () => set({ isPlaying: false });
       audio.onwaiting = () => set({ isLoading: true });
@@ -92,6 +138,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     isPlaying: false,
     isExpanded: false,
     isLoading: false,
+    repeatMode: "off",
     progress: 0,
     duration: 0,
     volume: 1,
@@ -174,10 +221,31 @@ export const usePlayer = create<PlayerState>((set, get) => {
       });
 
       try {
-        const streamUrl = await getStreamUrl(normalizedSong.videoId);
-        audio.volume = get().volume;
-        audio.src = streamUrl;
-        await audio.play();
+        const streamUrl = await getStreamUrl(
+          normalizedSong.videoId,
+          useSettings.getState().quality,
+        );
+        const gain = getGain();
+        const crossfade = useSettings.getState().crossfade;
+        const isTrackChange = get().current !== null;
+
+        if (gain && crossfade > 0 && isTrackChange && audioCtx) {
+          const now = audioCtx.currentTime;
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.setValueAtTime(get().volume, now);
+          gain.gain.linearRampToValueAtTime(0, now + crossfade);
+          await sleep(crossfade * 1000);
+          audio.src = streamUrl;
+          await audio.play();
+          const after = audioCtx.currentTime;
+          gain.gain.setValueAtTime(0, after);
+          gain.gain.linearRampToValueAtTime(get().volume, after + crossfade);
+        } else {
+          if (gain) gain.gain.value = get().volume;
+          else audio.volume = get().volume;
+          audio.src = streamUrl;
+          await audio.play();
+        }
         set({ isLoading: false, isPlaying: true });
       } catch (err) {
         console.error("Failed to play song:", err);
@@ -190,16 +258,24 @@ export const usePlayer = create<PlayerState>((set, get) => {
       if (!current) return;
 
       const audio = ensureAudio();
-      audio.volume = volume;
+      const gain = getGain();
+      if (gain) gain.gain.value = volume;
+      else audio.volume = volume;
       set({ isLoading: true, isExpanded: false });
 
       try {
-        const streamUrl = await getStreamUrl(current.videoId);
+        const streamUrl = await getStreamUrl(
+          current.videoId,
+          useSettings.getState().quality,
+        );
         audio.src = streamUrl;
         const onCanPlay = () => {
           audio.removeEventListener("canplay", onCanPlay);
           if (progress > 0 && isFinite(audio.duration) && progress < audio.duration) {
             audio.currentTime = progress;
+          }
+          if (useSettings.getState().autoplayOnLoad) {
+            void audio.play();
           }
         };
         audio.addEventListener("canplay", onCanPlay);
@@ -218,7 +294,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     next: () => {
-      const { queue, queueIndex, isRadio, radioSeed } = get();
+      const { queue, queueIndex, isRadio, radioSeed, repeatMode } = get();
       if (queueIndex < queue.length - 1) {
         const nextSong = queue[queueIndex + 1];
         if (nextSong) {
@@ -239,11 +315,16 @@ export const usePlayer = create<PlayerState>((set, get) => {
             });
           }
         }
+      } else if (repeatMode === "all" && queue.length > 0) {
+        const firstSong = queue[0];
+        if (firstSong) {
+          get().load(firstSong, queue);
+        }
       }
     },
 
     prev: () => {
-      const { queue, queueIndex, progress, audio } = get();
+      const { queue, queueIndex, progress, audio, repeatMode } = get();
       if (progress > 3) {
         if (audio) audio.currentTime = 0;
         return;
@@ -252,6 +333,11 @@ export const usePlayer = create<PlayerState>((set, get) => {
         const prevSong = queue[queueIndex - 1];
         if (prevSong) {
           get().load(prevSong, queue);
+        }
+      } else if (repeatMode === "all" && queue.length > 0) {
+        const lastSong = queue[queue.length - 1];
+        if (lastSong) {
+          get().load(lastSong, queue);
         }
       }
     },
@@ -263,8 +349,12 @@ export const usePlayer = create<PlayerState>((set, get) => {
     },
 
     setVolume: (v) => {
-      const audio = get().audio;
-      if (audio) audio.volume = v;
+      const gain = getGain();
+      if (gain) gain.gain.value = v;
+      else {
+        const audio = get().audio;
+        if (audio) audio.volume = v;
+      }
       set({ volume: v });
     },
 
@@ -277,6 +367,17 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     isRadio: false,
     radioSeed: null,
+
+    cycleRepeatMode: () => {
+      set((state) => ({
+        repeatMode:
+          state.repeatMode === "off"
+            ? "one"
+            : state.repeatMode === "one"
+              ? "all"
+              : "off",
+      }));
+    },
 
     startRadio: async (song) => {
       const normalizedSong = normalizeSong(song);
@@ -307,13 +408,14 @@ const STORAGE_KEY = "musico-player";
 
 function saveToStorage(state: PlayerState) {
   try {
-    const data = JSON.stringify({
-      current: state.current,
-      queue: state.queue,
-      queueIndex: state.queueIndex,
-      progress: state.progress,
-      volume: state.volume,
-    });
+      const data = JSON.stringify({
+        current: state.current,
+        queue: state.queue,
+        queueIndex: state.queueIndex,
+        progress: state.progress,
+        volume: state.volume,
+        repeatMode: state.repeatMode,
+      });
     localStorage.setItem(STORAGE_KEY, data);
   } catch (err) {
     console.warn("Failed to persist player state:", err);
@@ -330,6 +432,8 @@ function loadFromStorage(): Partial<PlayerState> | null {
       queueIndex?: number;
       progress?: number;
       volume?: number;
+      repeatMode?: RepeatMode;
+      isRepeatOne?: boolean;
     };
     const current = normalizeSong(parsed.current);
     const queue = Array.isArray(parsed.queue)
@@ -348,6 +452,7 @@ function loadFromStorage(): Partial<PlayerState> | null {
         : parsed.queueIndex ?? -1,
       progress: parsed.progress ?? 0,
       volume: parsed.volume ?? 1,
+      repeatMode: parsed.repeatMode ?? (parsed.isRepeatOne ? "one" : "off"),
     };
   } catch (err) {
     console.warn("Failed to restore player state:", err);
@@ -364,7 +469,11 @@ if (saved) {
     queueIndex: saved.queueIndex,
     progress: saved.progress,
     volume: saved.volume,
+    repeatMode: saved.repeatMode,
   });
+} else {
+  // No persisted player — seed volume from settings default.
+  usePlayer.setState({ volume: useSettings.getState().defaultVolume });
 }
 
 // Persist critical changes immediately, debounce progress-only updates
@@ -376,6 +485,7 @@ usePlayer.subscribe((state) => {
     queueLen: state.queue.length,
     queueIndex: state.queueIndex,
     volume: state.volume,
+    repeatMode: state.repeatMode,
   });
   if (snapshot !== lastSaved) {
     lastSaved = snapshot;

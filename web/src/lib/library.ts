@@ -17,6 +17,7 @@ interface LibraryState {
   toggleLike: (song: SongDetailed) => void;
   isLiked: (id: string) => boolean;
   pushRecent: (song: SongDetailed) => void;
+  clearRecent: () => void;
 
   createPlaylist: (name: string) => Playlist;
   deletePlaylist: (id: string) => void;
@@ -50,6 +51,7 @@ export const useLibrary = create<LibraryState>()(
         const filtered = get().recent.filter((s) => s.videoId !== song.videoId);
         set({ recent: [song, ...filtered].slice(0, 30) });
       },
+      clearRecent: () => set({ recent: [] }),
 
       createPlaylist: (name) => {
         const p: Playlist = {

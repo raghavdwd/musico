@@ -11,6 +11,7 @@ import Liked from "./pages/Liked";
 import Recent from "./pages/Recent";
 import LocalPlaylist from "./pages/LocalPlaylist";
 import TasteSetup from "./pages/TasteSetup";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -39,6 +40,7 @@ export default function App() {
             <Route path="song/:id" element={<Song />} />
             <Route path="liked" element={<Liked />} />
             <Route path="recent" element={<Recent />} />
+            <Route path="settings" element={<Settings />} />
             <Route path="*" element={<NotFound />} />
           </Route>
         </Routes>

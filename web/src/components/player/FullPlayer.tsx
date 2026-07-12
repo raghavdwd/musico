@@ -10,6 +10,8 @@ import {
   RiHeartLine,
   RiPlayList2Fill,
   RiMenuLine,
+  RiRepeat2Line,
+  RiRepeatOneLine,
   RiRadioLine,
 } from "react-icons/ri";
 import { usePlayer } from "../../lib/store";
@@ -57,7 +59,7 @@ export function LyricsPanel() {
 }
 
 export default function FullPlayer() {
-  const { current, isPlaying, isLoading, toggle, next, prev, seek, progress, duration, isExpanded, collapse, queue, queueIndex, isRadio, startRadio, stopRadio } = usePlayer();
+  const { current, isPlaying, isLoading, toggle, next, prev, seek, progress, duration, isExpanded, collapse, queue, queueIndex, isRadio, repeatMode, cycleRepeatMode, startRadio, stopRadio } = usePlayer();
   const { liked, toggleLike } = useLibrary();
   const [dragging, setDragging] = useState<boolean>(false);
   const [localValue, setLocalValue] = useState(progress);
@@ -230,6 +232,39 @@ export default function FullPlayer() {
                     title={isRadio ? "Stop radio" : "Start radio"}
                   >
                     <RiRadioLine className={`text-2xl ${isRadio ? "animate-pulse" : ""}`} />
+                  </button>
+                  <button
+                    onClick={cycleRepeatMode}
+                    className={`relative rounded-full p-3 transition-colors ${
+                      repeatMode !== "off"
+                        ? "bg-ember/20 text-ember"
+                        : "text-mist hover:bg-bark/60 hover:text-snow"
+                    }`}
+                    aria-label={
+                      repeatMode === "off"
+                        ? "Repeat off"
+                        : repeatMode === "one"
+                          ? "Repeat one"
+                          : "Repeat all"
+                    }
+                    title={
+                      repeatMode === "off"
+                        ? "Repeat off"
+                        : repeatMode === "one"
+                          ? "Repeat one"
+                          : "Repeat all"
+                    }
+                  >
+                    {repeatMode === "one" ? (
+                      <RiRepeatOneLine className="text-2xl text-ember" />
+                    ) : (
+                      <RiRepeat2Line className={`text-2xl ${repeatMode !== "off" ? "text-ember" : ""}`} />
+                    )}
+                    {repeatMode === "one" && (
+                      <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[14px] items-center justify-center rounded-full bg-ember px-1 text-[9px] font-bold text-void">
+                        1
+                      </span>
+                    )}
                   </button>
                   <button
                     onClick={() => setPanel(panel === "queue" ? "lyrics" : "queue")}

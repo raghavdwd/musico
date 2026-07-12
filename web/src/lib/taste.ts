@@ -14,6 +14,8 @@ interface TasteState {
   skippedSetup: boolean;
   markSetupSeen: () => void;
   saveProfile: (profile: TasteProfile) => void;
+  removeFavoriteArtist: (artistId: string) => void;
+  removeFavoriteSong: (videoId: string) => void;
   skipSetup: () => void;
   clearProfile: () => void;
 }
@@ -105,6 +107,46 @@ export const useTaste = create<TasteState>((set, get) => ({
         profile: normalizedProfile,
         seenSetup: true,
         skippedSetup: false,
+      };
+      saveTasteState({
+        profile: next.profile,
+        seenSetup: next.seenSetup,
+        skippedSetup: next.skippedSetup,
+      });
+      return next;
+    });
+  },
+  removeFavoriteArtist: (artistId) => {
+    const profile = get().profile;
+    if (!profile) return;
+    set((state) => {
+      const next = {
+        ...state,
+        profile: {
+          ...profile,
+          favoriteArtists: profile.favoriteArtists.filter(
+            (a) => a.artistId !== artistId,
+          ),
+        },
+      };
+      saveTasteState({
+        profile: next.profile,
+        seenSetup: next.seenSetup,
+        skippedSetup: next.skippedSetup,
+      });
+      return next;
+    });
+  },
+  removeFavoriteSong: (videoId) => {
+    const profile = get().profile;
+    if (!profile) return;
+    set((state) => {
+      const next = {
+        ...state,
+        profile: {
+          ...profile,
+          favoriteSongs: profile.favoriteSongs.filter((s) => s.videoId !== videoId),
+        },
       };
       saveTasteState({
         profile: next.profile,

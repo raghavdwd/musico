@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getStreamUrl } from "../../lib/stream.ts";
+import { getStreamUrl, type StreamQuality } from "../../lib/stream.ts";
 import { AppError } from "../../middleware/error-handler.ts";
 import { getCache } from "../../lib/redis.ts";
 
@@ -15,9 +15,12 @@ router.get("/:id", async (req, res, next) => {
   }
   try {
     const id = req.params.id as string;
+    const quality = (req.query.q as StreamQuality) || "auto";
 
     // Try cached stream URL first
-    const cached = await getCache<{ url: string; mimeType: string }>(`stream:${id}`);
+    const cached = await getCache<{ url: string; mimeType: string }>(
+      `stream:${id}:${quality}`,
+    );
     let streamUrl: string;
     let mimeType: string;
 
@@ -25,7 +28,7 @@ router.get("/:id", async (req, res, next) => {
       streamUrl = cached.url;
       mimeType = cached.mimeType;
     } else {
-      const stream = await getStreamUrl(id);
+      const stream = await getStreamUrl(id, quality);
       streamUrl = stream.url;
       mimeType = stream.mimeType;
     }

@@ -3,6 +3,7 @@ import {
   RiPlayFill,
   RiSkipBackFill,
   RiSkipForwardFill,
+  RiRepeat2Line,
   RiVolumeDownFill,
   RiVolumeUpFill,
   RiVolumeMuteFill,
@@ -10,6 +11,7 @@ import {
   RiHeartFill,
   RiHeartLine,
   RiPlayList2Fill,
+  RiRepeatOneLine,
   RiRadioLine,
 } from "react-icons/ri";
 import { useEffect, useRef, useState } from "react";
@@ -100,6 +102,8 @@ export default function PlayerBar() {
     queue,
     queueIndex,
     isRadio,
+    repeatMode,
+    cycleRepeatMode,
     startRadio,
     stopRadio,
   } = usePlayer();
@@ -226,6 +230,40 @@ export default function PlayerBar() {
           title={isRadio ? "Stop radio" : "Start radio"}
         >
           <RiRadioLine className={isRadio ? "animate-pulse" : ""} />
+        </button>
+
+        <button
+          onClick={cycleRepeatMode}
+          className={`relative flex-shrink-0 rounded-full p-2 transition-colors ${
+            repeatMode !== "off"
+              ? "bg-ember/20 text-ember"
+              : "text-mist hover:bg-bark/60 hover:text-snow"
+          }`}
+          aria-label={
+            repeatMode === "off"
+              ? "Repeat off"
+              : repeatMode === "one"
+                ? "Repeat one"
+                : "Repeat all"
+          }
+          title={
+            repeatMode === "off"
+              ? "Repeat off"
+              : repeatMode === "one"
+                ? "Repeat one"
+                : "Repeat all"
+          }
+        >
+          {repeatMode === "one" ? (
+            <RiRepeatOneLine className="text-ember" />
+          ) : (
+            <RiRepeat2Line className={repeatMode !== "off" ? "text-ember" : ""} />
+          )}
+          {repeatMode === "one" && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[14px] items-center justify-center rounded-full bg-ember px-1 text-[9px] font-bold text-void">
+              1
+            </span>
+          )}
         </button>
 
         <button
