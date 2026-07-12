@@ -10,6 +10,7 @@ import Song from "./pages/Song";
 import Liked from "./pages/Liked";
 import Recent from "./pages/Recent";
 import LocalPlaylist from "./pages/LocalPlaylist";
+import TasteSetup from "./pages/TasteSetup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -27,6 +28,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
+          <Route path="taste-setup" element={<TasteSetup />} />
           <Route element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="search" element={<Search />} />

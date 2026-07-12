@@ -1,4 +1,4 @@
-import { Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { useEffect, useState } from "react";
 import { RiSearch2Line } from "react-icons/ri";
@@ -9,6 +9,7 @@ import QueuePanel from "../player/QueuePanel";
 import { usePlayer } from "../../lib/store";
 import { Toaster } from "sonner";
 import AddToPlaylist from "../ui/AddToPlaylist";
+import { useTaste } from "../../lib/taste";
 
 function TopSearchBar() {
   const [q, setQ] = useState("");
@@ -40,7 +41,10 @@ function TopSearchBar() {
 
 export default function Layout() {
   const location = useLocation();
+  const { profile, seenSetup, skippedSetup } = useTaste();
   const isSearchPage = location.pathname === "/search";
+  const shouldGateTasteSetup =
+    !profile && !seenSetup && !skippedSetup && location.pathname !== "/taste-setup";
 
   // Restore playback from localStorage on mount
   useEffect(() => {
@@ -50,6 +54,11 @@ export default function Layout() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (shouldGateTasteSetup) {
+    const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
+    return <Navigate to={`/taste-setup?returnTo=${returnTo}`} replace />;
+  }
 
   return (
     <div className="flex h-screen min-w-0 flex-col bg-void text-snow">
