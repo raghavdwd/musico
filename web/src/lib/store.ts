@@ -8,6 +8,35 @@ import { useSettings } from "./settings";
 let audioCtx: AudioContext | null = null;
 let gainNode: GainNode | null = null;
 
+// Prefetched, pre-buffered audio elements for upcoming queue tracks, keyed by
+// `${videoId}:${quality}`. Keeps next-track playback instant.
+const PREFETCH_LIMIT = 3;
+const prefetchCache = new Map<string, HTMLAudioElement>();
+
+function prefetchKey(videoId: string, quality: string): string {
+  return `${videoId}:${quality}`;
+}
+
+function bindAudioEvents(audio: HTMLAudioElement, set: (partial: Partial<PlayerState>) => void, get: () => PlayerState) {
+  audio.ontimeupdate = () => {
+    set({ progress: audio.currentTime, duration: audio.duration || 0 });
+  };
+  audio.onended = () => {
+    if (get().repeatMode === "one" && get().current) {
+      audio.currentTime = 0;
+      void audio.play();
+      set({ progress: 0, isPlaying: true });
+      return;
+    }
+    get().next();
+  };
+  audio.onplay = () => set({ isPlaying: true });
+  audio.onpause = () => set({ isPlaying: false });
+  audio.onwaiting = () => set({ isLoading: true });
+  audio.onplaying = () => set({ isLoading: false });
+  audio.oncanplay = () => set({ isLoading: false });
+}
+
 function getGain(): GainNode | null {
   if (typeof window === "undefined") return null;
   if (!audioCtx) {
@@ -74,6 +103,7 @@ interface PlayerState {
   removeFromQueue: (index: number) => void;
   reorderQueue: (fromIndex: number, toIndex: number) => void;
   clearQueue: () => void;
+  prefetchNext: () => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
@@ -107,25 +137,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
           // safe to ignore since we only create audio once.
         }
       }
-      audio.ontimeupdate = () => {
-        set({ progress: audio!.currentTime, duration: audio!.duration || 0 });
-      };
-      audio.onended = () => {
-        if (get().repeatMode === "one" && get().current) {
-          if (!audio) return;
-          const player = audio;
-          player.currentTime = 0;
-          void player.play();
-          set({ progress: 0, isPlaying: true });
-          return;
-        }
-        get().next();
-      };
-      audio.onplay = () => set({ isPlaying: true });
-      audio.onpause = () => set({ isPlaying: false });
-      audio.onwaiting = () => set({ isLoading: true });
-      audio.onplaying = () => set({ isLoading: false });
-      audio.oncanplay = () => set({ isLoading: false });
+      bindAudioEvents(audio, set, get);
       set({ audio });
     }
     return audio;
@@ -155,6 +167,50 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const q = [...queue];
       q.splice(queueIndex + 1, 0, nextSong);
       set({ queue: q });
+      get().prefetchNext();
+    },
+
+    prefetchNext: () => {
+      // Drop stale prefetches, then warm+buffer the immediate next track.
+      const { queue, queueIndex, repeatMode } = get();
+      const quality = useSettings.getState().quality;
+
+      let nextSong: SongDetailed | null = null;
+      if (queueIndex < queue.length - 1) {
+        nextSong = queue[queueIndex + 1];
+      } else if (repeatMode === "all" && queue.length > 0) {
+        nextSong = queue[0];
+      }
+
+      const wantedKey = nextSong ? prefetchKey(nextSong.videoId, quality) : null;
+      for (const key of [...prefetchCache.keys()]) {
+        if (key !== wantedKey) {
+          const el = prefetchCache.get(key);
+          el?.pause();
+          prefetchCache.delete(key);
+        }
+      }
+      if (!nextSong) return;
+      if (prefetchCache.has(wantedKey!)) return;
+
+      void getStreamUrl(nextSong.videoId, quality)
+        .then((url) => {
+          const el = new Audio();
+          el.preload = "auto";
+          el.crossOrigin = "anonymous";
+          el.src = url;
+          while (prefetchCache.size >= PREFETCH_LIMIT) {
+            const oldest = prefetchCache.keys().next().value;
+            if (oldest === undefined) break;
+            const oldEl = prefetchCache.get(oldest);
+            oldEl?.pause();
+            prefetchCache.delete(oldest);
+          }
+          prefetchCache.set(wantedKey!, el);
+        })
+        .catch(() => {
+          /* prefetch failures are non-fatal */
+        });
     },
 
     removeFromQueue: (index) => {
@@ -163,6 +219,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const q = queue.filter((_, i) => i !== index);
       const newIdx = index < queueIndex ? queueIndex - 1 : queueIndex;
       set({ queue: q, queueIndex: newIdx < 0 ? 0 : Math.min(newIdx, q.length - 1) });
+      get().prefetchNext();
     },
 
     reorderQueue: (fromIndex, toIndex) => {
@@ -185,6 +242,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       }
 
       set({ queue: q, queueIndex: newIdx });
+      get().prefetchNext();
     },
 
     clearQueue: () => {
@@ -194,6 +252,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
       } else {
         set({ queue: [], queueIndex: -1 });
       }
+      get().prefetchNext();
     },
 
     load: async (song, queue) => {
@@ -204,7 +263,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
         return;
       }
 
-      const audio = ensureAudio();
+      // The element currently driving playback. If we adopt a different (prefetched)
+      // element below, this one must be stopped so two tracks don't play at once.
+      const prevAudio = get().audio;
       const q = (queue ?? [normalizedSong])
         .map((item) => normalizeSong(item))
         .filter((item): item is SongDetailed => item !== null);
@@ -220,11 +281,43 @@ export const usePlayer = create<PlayerState>((set, get) => {
         duration: 0,
       });
 
+      const quality = useSettings.getState().quality;
+      const cachedKey = prefetchKey(normalizedSong.videoId, quality);
+      const prefetched = prefetchCache.get(cachedKey);
+      let audio: HTMLAudioElement;
+      let streamUrl: string;
+
+      if (prefetched) {
+        // Adopt the pre-buffered element as the live audio source.
+        prefetchCache.delete(cachedKey);
+        audio = prefetched;
+        audio.crossOrigin = "anonymous";
+        const gain = getGain();
+        if (gain) {
+          try {
+            const source = audioCtx!.createMediaElementSource(audio);
+            source.connect(gain);
+          } catch {
+            /* already sourced — ignore */
+          }
+        }
+        bindAudioEvents(audio, set, get);
+        audio.currentTime = 0;
+        streamUrl = audio.src;
+        if (!streamUrl) {
+          streamUrl = await getStreamUrl(normalizedSong.videoId, quality);
+          audio.src = streamUrl;
+        }
+        if (prevAudio && prevAudio !== audio) {
+          prevAudio.pause();
+        }
+        set({ audio });
+      } else {
+        audio = ensureAudio();
+        streamUrl = await getStreamUrl(normalizedSong.videoId, quality);
+      }
+
       try {
-        const streamUrl = await getStreamUrl(
-          normalizedSong.videoId,
-          useSettings.getState().quality,
-        );
         const gain = getGain();
         const crossfade = useSettings.getState().crossfade;
         const isTrackChange = get().current !== null;
@@ -251,6 +344,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
         console.error("Failed to play song:", err);
         set({ isLoading: false });
       }
+
+      get().prefetchNext();
     },
 
     prepareFromStorage: async () => {
@@ -309,6 +404,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
               );
               if (freshRecs.length > 0) {
                 set({ queue: [...state.queue, ...freshRecs] });
+                get().prefetchNext();
               }
             }).catch((err) => {
               console.warn("Failed to refresh radio:", err);
@@ -377,6 +473,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
               ? "all"
               : "off",
       }));
+      get().prefetchNext();
     },
 
     startRadio: async (song) => {
