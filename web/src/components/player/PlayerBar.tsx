@@ -9,6 +9,7 @@ import {
   RiExpandUpDownLine,
   RiHeartFill,
   RiHeartLine,
+  RiPlayList2Fill,
 } from "react-icons/ri";
 import { useEffect, useRef, useState } from "react";
 import { usePlayer } from "../../lib/store";
@@ -92,6 +93,11 @@ export default function PlayerBar() {
     seek,
     setVolume,
     expand,
+    isQueueOpen,
+    openQueue,
+    closeQueue,
+    queue,
+    queueIndex,
   } = usePlayer();
   const { liked, toggleLike, pushRecent } = useLibrary();
   const [muted, setMuted] = useState(false);
@@ -187,6 +193,23 @@ export default function PlayerBar() {
             <RiSkipForwardFill className="text-lg" />
           </button>
         </div>
+
+        <button
+          onClick={() => isQueueOpen ? closeQueue() : openQueue()}
+          className={`relative flex-shrink-0 rounded-full p-2 transition-colors ${
+            isQueueOpen
+              ? "bg-ember/20 text-ember"
+              : "text-mist hover:bg-bark/60 hover:text-snow"
+          }`}
+          aria-label="Queue"
+        >
+          <RiPlayList2Fill />
+          {queue.length - queueIndex - 1 > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[14px] items-center justify-center rounded-full bg-ember px-1 text-[9px] font-bold text-void">
+              {queue.length - queueIndex - 1}
+            </span>
+          )}
+        </button>
 
         <button
           onClick={expand}

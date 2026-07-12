@@ -12,7 +12,7 @@ import type { SongDetailed } from "../types";
 export default function Album() {
   const { id } = useParams();
   const { data: album, isLoading } = useAlbum(id);
-  const load = usePlayer((s) => s.load);
+  const { load, addToQueue } = usePlayer();
 
   if (isLoading || !album) {
     return (
@@ -74,7 +74,7 @@ export default function Album() {
             <span>Duration</span>
           </div>
           {album.songs.map((song: SongDetailed, i: number) => (
-            <SongRow key={song.videoId} song={song} index={i} queue={album.songs} showArt={false} />
+            <SongRow key={song.videoId} song={song} index={i} queue={album.songs} showArt={false} onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }} />
           ))}
         </div>
       </motion.div>

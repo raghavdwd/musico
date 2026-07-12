@@ -6,12 +6,13 @@ import { bestThumb } from "../lib/format";
 import SongRow from "../components/cards/SongRow";
 import MediaCard from "../components/cards/MediaCard";
 import { Ring2Loader, CenteredLoader } from "../components/ui/Loaders";
+import { toast } from "sonner";
 import type { SongDetailed, AlbumDetailed, ArtistDetailed as ArtistD } from "../types";
 
 export default function Artist() {
   const { id } = useParams();
   const { data: artist, isLoading } = useArtist(id);
-  const load = usePlayer((s) => s.load);
+  const { load, addToQueue } = usePlayer();
 
   if (isLoading || !artist) {
     return (
@@ -51,7 +52,7 @@ export default function Artist() {
             </button>
           </div>
           {artist.topSongs.slice(0, 6).map((song: SongDetailed, i: number) => (
-            <SongRow key={song.videoId} song={song} index={i} queue={artist.topSongs} showArt={false} />
+            <SongRow key={song.videoId} song={song} index={i} queue={artist.topSongs} showArt={false} onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }} />
           ))}
         </section>
       )}

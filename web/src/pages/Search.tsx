@@ -8,6 +8,8 @@ import { useSearchParams } from "react-router-dom";
 import SongRow from "../components/cards/SongRow";
 import MediaCard from "../components/cards/MediaCard";
 import { HelixLoader, OrbitLoader } from "../components/ui/Loaders";
+import { usePlayer } from "../lib/store";
+import { toast } from "sonner";
 import type { SearchResult } from "../types";
 
 export default function Search() {
@@ -21,6 +23,8 @@ export default function Search() {
     queryFn: () => api.search(debounced),
     enabled: debounced.length > 0,
   });
+
+  const { addToQueue } = usePlayer();
 
   const songs = (data || []).filter((r): r is Extract<SearchResult, { type: "SONG" }> => r.type === "SONG");
   const artists = (data || []).filter((r): r is Extract<SearchResult, { type: "ARTIST" }> => r.type === "ARTIST");
@@ -65,7 +69,7 @@ export default function Search() {
             <section className="space-y-2">
               <h2 className="font-display text-2xl text-snow">Songs</h2>
               {songs.slice(0, 8).map((song, i) => (
-                <SongRow key={song.videoId} song={song} index={i} queue={songs} />
+                <SongRow key={song.videoId} song={song} index={i} queue={songs} onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }} />
               ))}
             </section>
           )}

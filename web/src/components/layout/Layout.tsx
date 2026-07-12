@@ -5,6 +5,7 @@ import { RiSearch2Line } from "react-icons/ri";
 import Sidebar from "./Sidebar";
 import PlayerBar from "../player/PlayerBar";
 import FullPlayer from "../player/FullPlayer";
+import QueuePanel from "../player/QueuePanel";
 import { Toaster } from "sonner";
 import AddToPlaylist from "../ui/AddToPlaylist";
 
@@ -64,6 +65,7 @@ export default function Layout() {
       </div>
       <PlayerBar />
       <FullPlayer />
+      <QueuePanel />
       <AddToPlaylist />
       <Toaster
         position="bottom-right"

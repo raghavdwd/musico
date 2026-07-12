@@ -2,10 +2,11 @@ import { useLibrary } from "../lib/library";
 import { usePlayer } from "../lib/store";
 import { RiPlayFill } from "react-icons/ri";
 import SongRow from "../components/cards/SongRow";
+import { toast } from "sonner";
 
 export default function Recent() {
   const { recent } = useLibrary();
-  const load = usePlayer((s) => s.load);
+  const { load, addToQueue } = usePlayer();
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -35,7 +36,7 @@ export default function Recent() {
           </p>
         ) : (
           recent.map((song, i) => (
-            <SongRow key={song.videoId} song={song} index={i} queue={recent} showArt={false} />
+            <SongRow key={song.videoId} song={song} index={i} queue={recent} showArt={false} onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }} />
           ))
         )}
       </div>

@@ -15,6 +15,8 @@ interface PlayerState {
   audio: HTMLAudioElement | null;
   load: (song: SongDetailed, queue?: SongDetailed[]) => Promise<void>;
   addToQueue: (song: SongDetailed) => void;
+  removeFromQueue: (index: number) => void;
+  clearQueue: () => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
@@ -22,6 +24,9 @@ interface PlayerState {
   setVolume: (v: number) => void;
   expand: () => void;
   collapse: () => void;
+  isQueueOpen: boolean;
+  openQueue: () => void;
+  closeQueue: () => void;
 }
 
 export const usePlayer = create<PlayerState>((set, get) => {
@@ -64,6 +69,24 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const q = [...queue];
       q.splice(queueIndex + 1, 0, song);
       set({ queue: q });
+    },
+
+    removeFromQueue: (index) => {
+      const { queue, queueIndex } = get();
+      if (index < 0 || index >= queue.length) return;
+      const q = queue.filter((_, i) => i !== index);
+      // Adjust queueIndex if we removed something before it
+      const newIdx = index < queueIndex ? queueIndex - 1 : queueIndex;
+      set({ queue: q, queueIndex: newIdx < 0 ? 0 : Math.min(newIdx, q.length - 1) });
+    },
+
+    clearQueue: () => {
+      const { current } = get();
+      if (current) {
+        set({ queue: [current], queueIndex: 0 });
+      } else {
+        set({ queue: [], queueIndex: -1 });
+      }
     },
 
     load: async (song, queue) => {
@@ -134,5 +157,9 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     expand: () => set({ isExpanded: true }),
     collapse: () => set({ isExpanded: false }),
+
+    isQueueOpen: false,
+    openQueue: () => set({ isQueueOpen: true }),
+    closeQueue: () => set({ isQueueOpen: false }),
   };
 });

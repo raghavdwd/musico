@@ -2,6 +2,8 @@ import type { SongDetailed, AlbumDetailed, ArtistDetailed, PlaylistDetailed } fr
 import { Virtuoso } from "react-virtuoso";
 import SongRow from "../cards/SongRow";
 import MediaCard from "../cards/MediaCard";
+import { usePlayer } from "../../lib/store";
+import { toast } from "sonner";
 
 interface Props {
   title: string;
@@ -11,6 +13,7 @@ interface Props {
 }
 
 export default function Section({ title, items, type, queue }: Props) {
+  const { addToQueue } = usePlayer();
   if (items.length === 0) return null;
 
   const isList = type === "songs";
@@ -32,6 +35,7 @@ export default function Section({ title, items, type, queue }: Props) {
                 song={song}
                 index={_i}
                 queue={(queue as SongDetailed[]) ?? (items as SongDetailed[])}
+                onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }}
               />
             )}
           />

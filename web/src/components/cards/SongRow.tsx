@@ -1,4 +1,11 @@
-import { RiHeartFill, RiHeartLine, RiPauseFill, RiPlayFill, RiAddLine, RiPlayListAddLine } from "react-icons/ri";
+import {
+  RiHeartFill,
+  RiHeartLine,
+  RiPauseFill,
+  RiPlayFill,
+  RiAddLine,
+  RiPlayListAddLine,
+} from "react-icons/ri";
 import { motion } from "motion/react";
 import { useQuery } from "@tanstack/react-query";
 import type { SongDetailed } from "../../types";
@@ -19,7 +26,14 @@ interface Props {
   onAddToQueue?: (song: SongDetailed) => void;
 }
 
-export default function SongRow({ song, index, queue, showArt = true, onClick, onAddToQueue }: Props) {
+export default function SongRow({
+  song,
+  index,
+  queue,
+  showArt = true,
+  onClick,
+  onAddToQueue,
+}: Props) {
   const { load, current, isPlaying, isLoading, toggle } = usePlayer();
   const { isLiked, toggleLike } = useLibrary();
   const openAddToPlaylist = useUI((s) => s.openAddToPlaylist);
@@ -50,12 +64,16 @@ export default function SongRow({ song, index, queue, showArt = true, onClick, o
       animate={{
         opacity: 1,
         y: 0,
-        backgroundColor: isBuffering ? "rgba(232, 93, 59, 0.08)" : "rgba(0, 0, 0, 0)",
+        backgroundColor: isBuffering
+          ? "rgba(232, 93, 59, 0.08)"
+          : "rgba(0, 0, 0, 0)",
       }}
       transition={{ duration: 0.3 }}
-      className={`group relative grid grid-cols-[24px_1fr_60px_40px_40px] items-center gap-3 rounded-md px-2 py-1.5 transition-colors ${
-        isBuffering ? "" : "hover:bg-bark/60"
-      }`}
+      className={`group relative grid items-center gap-3 rounded-md px-2 py-1.5 transition-colors ${
+        onAddToQueue
+          ? "grid-cols-[24px_1fr_60px_40px_40px_40px]"
+          : "grid-cols-[24px_1fr_60px_40px_40px]"
+      } ${isBuffering ? "" : "hover:bg-bark/60"}`}
     >
       <button
         onClick={play}
@@ -89,8 +107,10 @@ export default function SongRow({ song, index, queue, showArt = true, onClick, o
             loading={isBuffering}
           />
         )}
-        <div className="min-w-0 flex-1">
-          <div className={`truncate text-sm font-medium ${isCurrent ? "text-ember" : "text-snow"}`}>
+        <div className="min-w-0 flex-2">
+          <div
+            className={`truncate text-sm font-medium ${isCurrent ? "text-ember" : "text-snow"}`}
+          >
             {song.name}
           </div>
           <div className="truncate text-xs text-mist">{song.artist.name}</div>
@@ -98,7 +118,11 @@ export default function SongRow({ song, index, queue, showArt = true, onClick, o
       </div>
 
       <div className="font-mono text-xs tabular-nums text-mist">
-        {duration ? formatTime(duration) : <span className="opacity-30">—:—</span>}
+        {duration ? (
+          formatTime(duration)
+        ) : (
+          <span className="opacity-30">—:—</span>
+        )}
       </div>
 
       <button
@@ -107,7 +131,9 @@ export default function SongRow({ song, index, queue, showArt = true, onClick, o
           toggleLike(song);
         }}
         className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-          liked ? "text-ember" : "text-mist opacity-0 group-hover:opacity-100 hover:text-snow"
+          liked
+            ? "text-ember"
+            : "text-mist opacity-0 group-hover:opacity-100 hover:text-snow"
         }`}
         aria-label={liked ? "Unlike" : "Like"}
       >

@@ -3,10 +3,11 @@ import { usePlayer } from "../lib/store";
 import { RiPlayFill } from "react-icons/ri";
 import SongRow from "../components/cards/SongRow";
 import VinylArt from "../components/player/VinylArt";
+import { toast } from "sonner";
 
 export default function Liked() {
   const { liked } = useLibrary();
-  const load = usePlayer((s) => s.load);
+  const { load, addToQueue } = usePlayer();
 
   return (
     <div className="mx-auto max-w-5xl">
@@ -34,7 +35,7 @@ export default function Liked() {
           </p>
         ) : (
           liked.map((song, i) => (
-            <SongRow key={song.videoId} song={song} index={i} queue={liked} showArt={false} />
+            <SongRow key={song.videoId} song={song} index={i} queue={liked} showArt={false} onAddToQueue={(s) => { addToQueue(s); toast.success("Added to queue"); }} />
           ))
         )}
       </div>

@@ -8,6 +8,8 @@ import {
   RiSkipForwardFill,
   RiHeartFill,
   RiHeartLine,
+  RiPlayList2Fill,
+  RiMenuLine,
 } from "react-icons/ri";
 import { usePlayer } from "../../lib/store";
 import { useLibrary } from "../../lib/library";
@@ -15,9 +17,12 @@ import { useQuery } from "@tanstack/react-query";
 import * as api from "../../api";
 import { formatTime } from "../../lib/format";
 import VinylArt from "./VinylArt";
+import QueueList from "./QueueList";
 import { InfinityLoader } from "../ui/Loaders";
 import { toast } from "sonner";
 import type { SongDetailed } from "../../types";
+
+type Panel = "lyrics" | "queue";
 
 export function LyricsPanel() {
   const current = usePlayer((s) => s.current);
@@ -51,10 +56,22 @@ export function LyricsPanel() {
 }
 
 export default function FullPlayer() {
-  const { current, isPlaying, isLoading, toggle, next, prev, seek, progress, duration, isExpanded, collapse } = usePlayer();
+  const { current, isPlaying, isLoading, toggle, next, prev, seek, progress, duration, isExpanded, collapse, queue, queueIndex } = usePlayer();
   const { liked, toggleLike } = useLibrary();
   const [dragging, setDragging] = useState<boolean>(false);
   const [localValue, setLocalValue] = useState(progress);
+  const [panel, setPanel] = useState<Panel>("lyrics");
+
+  // Reset to lyrics when the song changes
+  const lastVideoId = current?.videoId;
+  useEffect(() => {
+    setPanel("lyrics");
+  }, [lastVideoId]);
+
+  // Reset to lyrics when player collapses
+  useEffect(() => {
+    if (!isExpanded) setPanel("lyrics");
+  }, [isExpanded]);
 
   // sync local value to the real progress when not dragging
   useEffect(() => {
@@ -201,12 +218,59 @@ export default function FullPlayer() {
                   >
                     {isLiked ? <RiHeartFill className="text-2xl" /> : <RiHeartLine className="text-2xl" />}
                   </button>
+                  <button
+                    onClick={() => setPanel(panel === "queue" ? "lyrics" : "queue")}
+                    className={`relative rounded-full p-3 transition-colors ${
+                      panel === "queue"
+                        ? "bg-ember/20 text-ember"
+                        : "text-mist hover:bg-bark/60 hover:text-snow"
+                    }`}
+                    aria-label={panel === "queue" ? "Show lyrics" : "Show queue"}
+                  >
+                    {panel === "queue" ? <RiMenuLine className="text-2xl" /> : <RiPlayList2Fill className="text-2xl" />}
+                    {panel !== "queue" && queue.length - queueIndex - 1 > 0 && (
+                      <span className="absolute right-0.5 top-1.5 flex h-4 min-w-[14px] items-center justify-center rounded-full bg-ember px-1 text-[9px] font-bold text-void">
+                        {queue.length - queueIndex - 1}
+                      </span>
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto pb-12">
-              <LyricsPanel />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Panel tabs */}
+              <div className="mb-4 flex gap-4 border-b border-bark/30">
+                <button
+                  onClick={() => setPanel("lyrics")}
+                  className={`pb-2 font-mono text-[10px] uppercase tracking-widest transition-colors ${
+                    panel === "lyrics"
+                      ? "border-b-2 border-ember text-ember"
+                      : "text-mist hover:text-snow"
+                  }`}
+                >
+                  Lyrics
+                </button>
+                <button
+                  onClick={() => setPanel("queue")}
+                  className={`relative pb-2 font-mono text-[10px] uppercase tracking-widest transition-colors ${
+                    panel === "queue"
+                      ? "border-b-2 border-ember text-ember"
+                      : "text-mist hover:text-snow"
+                  }`}
+                >
+                  Queue
+                  {queue.length - queueIndex - 1 > 0 && (
+                    <span className="ml-1.5 rounded-full bg-ember px-1.5 py-0.5 text-[9px] font-bold text-void">
+                      {queue.length - queueIndex - 1}
+                    </span>
+                  )}
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto pb-12">
+                {panel === "lyrics" ? <LyricsPanel /> : <QueueList />}
+              </div>
             </div>
           </div>
         </motion.div>
