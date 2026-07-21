@@ -40,6 +40,25 @@ function formatForQuality(quality: StreamQuality): string {
   }
 }
 
+function writeCookies(): string | null {
+  // Write YT_MUSIC_COOKIE to temp file for yt-dlp
+  // Format: Netscape cookie file, one line per cookie
+  // youtube.com	TRUE	/	TRUE	2147483647	SAPISID	<value>
+  const raw = Bun.env.YT_MUSIC_COOKIE;
+  if (!raw) return null;
+  try {
+    const path = "/tmp/yt-cookies.txt";
+    // If cookie is raw header value, wrap it; otherwise assume it's already Netscape format
+    const content = raw.includes("\t")
+      ? raw
+      : `# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2147483647\tSAPISID\t${raw}`;
+    Bun.write(path, content);
+    return path;
+  } catch {
+    return null;
+  }
+}
+
 export async function getStreamUrl(
   songId: string,
   quality: StreamQuality = "auto",
@@ -48,42 +67,61 @@ export async function getStreamUrl(
   const cached = await getCache<StreamData>(cacheKey);
   if (cached) return cached;
 
-  const proc = Bun.spawn(
-    [
+  const cookiesPath = writeCookies();
+
+  // Try clients in order of likelihood to work from datacenter IPs.
+  // mobile/tv clients use different API endpoints that are less often blocked.
+  const clients = ["web", "android", "tv", "ios"];
+  let lastError: Error | null = null;
+
+  for (const client of clients) {
+    const args = [
       "yt-dlp",
       "--no-warnings",
       "--no-progress",
       "--quiet",
       "--dump-json",
-      "--format", formatForQuality(quality),
+      "--format",
+      formatForQuality(quality),
       "--no-playlist",
-      "--extractor-retries", "1",
-      "--extractor-args", "youtube:player_client=web",
-      `https://music.youtube.com/watch?v=${songId}`,
-    ],
-    { stdout: "pipe", stderr: "pipe" },
-  );
+      "--extractor-retries",
+      "2",
+      "--extractor-args",
+      `youtube:player_client=${client}`,
+    ];
+    if (cookiesPath) {
+      args.push("--cookies", cookiesPath);
+    }
+    args.push(`https://music.youtube.com/watch?v=${songId}`);
 
-  const stdout = await new Response(proc.stdout).text();
-  const stderr = await new Response(proc.stderr).text();
-  const exitCode = await proc.exited;
+    const proc = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
 
-  if (exitCode !== 0) {
-    throw new Error(`yt-dlp failed: ${stderr.trim() || `exit ${exitCode}`}`);
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+
+    if (exitCode === 0) {
+      const info = JSON.parse(
+        stdout.trim().split("\n").pop() || "{}",
+      ) as Partial<YtDlpResult>;
+      if (info.url) {
+        const result: StreamData = {
+          url: info.url,
+          mimeType: mimeFromExt(info.ext || "webm"),
+          bitrate: (info.abr ?? 128) * 1000,
+          contentLength: info.filesize ?? 0,
+        };
+
+        await setCache(cacheKey, result, 3600);
+        return result;
+      }
+      lastError = new Error("yt-dlp returned no URL");
+    } else {
+      lastError = new Error(
+        `yt-dlp failed: ${stderr.trim() || `exit ${exitCode}`}`,
+      );
+    }
   }
 
-  const info = JSON.parse(stdout.trim().split("\n").pop() || "{}") as Partial<YtDlpResult>;
-  if (!info.url) {
-    throw new Error("yt-dlp returned no URL");
-  }
-
-  const result: StreamData = {
-    url: info.url,
-    mimeType: mimeFromExt(info.ext || "webm"),
-    bitrate: (info.abr ?? 128) * 1000,
-    contentLength: info.filesize ?? 0,
-  };
-
-  await setCache(cacheKey, result, 3600);
-  return result;
+  throw lastError || new Error("All yt-dlp clients failed");
 }

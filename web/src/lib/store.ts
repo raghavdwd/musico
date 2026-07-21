@@ -35,6 +35,15 @@ function bindAudioEvents(audio: HTMLAudioElement, set: (partial: Partial<PlayerS
   audio.onwaiting = () => set({ isLoading: true });
   audio.onplaying = () => set({ isLoading: false });
   audio.oncanplay = () => set({ isLoading: false });
+  audio.onerror = () => {
+    const state = get();
+    console.warn("Audio error, skipping:", state.current?.name);
+    set({ isLoading: false });
+    // Skip to next track if current song failed to load
+    if (state.current) {
+      state.next();
+    }
+  };
 }
 
 function getGain(): GainNode | null {
