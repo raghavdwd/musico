@@ -57,7 +57,8 @@ export async function getStreamUrl(
       "--dump-json",
       "--format", formatForQuality(quality),
       "--no-playlist",
-      "--extractor-args", "youtube:player_client=tv,web,android_vr,ios",
+      "--extractor-retries", "1",
+      "--extractor-args", "youtube:player_client=web",
       `https://music.youtube.com/watch?v=${songId}`,
     ],
     { stdout: "pipe", stderr: "pipe" },
@@ -76,13 +77,6 @@ export async function getStreamUrl(
     throw new Error("yt-dlp returned no URL");
   }
 
-  // Validate the URL works before caching — sometimes yt-dlp returns URLs
-  // that haven't been fully deciphered (e.g. partial signature)
-  const head = await fetch(info.url, { method: "HEAD" });
-  if (!head.ok) {
-    throw new Error(`stream URL not playable (HTTP ${head.status})`);
-  }
-
   const result: StreamData = {
     url: info.url,
     mimeType: mimeFromExt(info.ext || "webm"),
@@ -90,6 +84,6 @@ export async function getStreamUrl(
     contentLength: info.filesize ?? 0,
   };
 
-  await setCache(cacheKey, result, 300);
+  await setCache(cacheKey, result, 3600);
   return result;
 }

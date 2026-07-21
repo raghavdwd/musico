@@ -197,7 +197,6 @@ export const usePlayer = create<PlayerState>((set, get) => {
         .then((url) => {
           const el = new Audio();
           el.preload = "auto";
-          el.crossOrigin = "anonymous";
           el.src = url;
           while (prefetchCache.size >= PREFETCH_LIMIT) {
             const oldest = prefetchCache.keys().next().value;
@@ -291,7 +290,6 @@ export const usePlayer = create<PlayerState>((set, get) => {
         // Adopt the pre-buffered element as the live audio source.
         prefetchCache.delete(cachedKey);
         audio = prefetched;
-        audio.crossOrigin = "anonymous";
         const gain = getGain();
         if (gain) {
           try {
